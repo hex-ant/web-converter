@@ -1,4 +1,4 @@
-import type { MediaKind, OutputKind, Resolution } from '~/types/media'
+import type { MediaKind, OutputKind } from '~/types/media'
 
 export interface Preset {
   id: string
@@ -29,13 +29,16 @@ export const compressPresets: Preset[] = [
   { id: 'smallest', title: 'Make it as small as possible', description: 'Prioritizes file size for slow connections and storage.', icon: 'fluent:archive-24-regular', quality: 34, resolution: '854:-2', audioBitrate: 64 }
 ]
 
-export const resolutions: Resolution[] = [
-  { label: 'Square', width: 1080, height: 1080 },
-  { label: 'Landscape', width: 1920, height: 1080 },
-  { label: 'Portrait', width: 1080, height: 1920 },
-  { label: 'Story', width: 1080, height: 1920 },
-  { label: 'Classic', width: 1280, height: 960 }
-]
+export const aspectRatios = [
+  { id: '1:1', label: 'Square', ratio: 1 },
+  { id: '16:9', label: '16:9', ratio: 16 / 9 },
+  { id: '9:16', label: '9:16', ratio: 9 / 16 },
+  { id: '4:3', label: '4:3', ratio: 4 / 3 },
+  { id: '3:4', label: '3:4', ratio: 3 / 4 },
+  { id: 'original', label: 'Original', ratio: 0 }
+] as const
+
+export const outputResolutions = [320, 480, 720, 1080, 0] as const
 
 export const formatsFor = (source: MediaKind, target: OutputKind) => {
   if (target === 'audio') return ['mp3', 'm4a', 'wav', 'ogg']

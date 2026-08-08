@@ -68,11 +68,8 @@ export function useFfmpeg() {
         args.splice(0, args.length, '-f', 'lavfi', '-i', `color=c=${settings.backdropColor.replace('#', '0x')}:s=${settings.outputWidth}x${settings.outputHeight}:r=${settings.frameRate}`, '-i', inputName)
         args.push('-map', '0:v', '-map', '1:a')
       }
-      const zoom = Math.max(1, settings.cropScale / 100)
-      const positionX = Math.max(0, Math.min(100, settings.cropX)) / 100
-      const positionY = Math.max(0, Math.min(100, settings.cropY)) / 100
       const cropFilter = settings.backdropMode === 'image'
-        ? `scale=${Math.round(settings.outputWidth * zoom)}:${Math.round(settings.outputHeight * zoom)}:force_original_aspect_ratio=increase,crop=${settings.outputWidth}:${settings.outputHeight}:(iw-ow)*${positionX}:(ih-oh)*${positionY}`
+        ? `crop=iw*${settings.cropWidth / 100}:ih*${settings.cropHeight / 100}:iw*${settings.cropX / 100}:ih*${settings.cropY / 100},scale=${settings.outputWidth}:${settings.outputHeight}`
         : `scale=${settings.outputWidth}:${settings.outputHeight}`
       args.push('-vf', cropFilter, '-shortest')
     }

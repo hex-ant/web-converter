@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { MediaFileInfo, ProcessResult, ProcessSettings, ToolMode, OutputKind } from '~/types/media'
-import { compressPresets, convertPresets, formatsFor, resolutions } from '~/utils/presets'
+import { aspectRatios, compressPresets, convertPresets, formatsFor, outputResolutions } from '~/utils/presets'
 
 const step = ref(1)
 const media = ref<MediaFileInfo | null>(null)
@@ -12,13 +12,22 @@ const probing = ref(false)
 const showAdvanced = ref(false)
 const processingVideo = ref<HTMLVideoElement | null>(null)
 const pixelatedFrame = ref<HTMLCanvasElement | null>(null)
+const cropper = ref<HTMLElement | null>(null)
+const imageWidth = ref(0)
+const imageHeight = ref(0)
+const aspectChoice = ref('16:9')
+const resolutionChoice = ref(1080)
+const cropRect = reactive({ x: 7, y: 7, width: 86, height: 86 })
+let cropGesture: { mode: 'move' | 'resize'; startX: number; startY: number; x: number; y: number; width: number; height: number } | null = null
 const { probe } = useMediaProbe()
 const ffmpeg = useFfmpeg()
-const settings = reactive<ProcessSettings>({ tool: 'convert', outputKind: 'video', presetId: 'compatible', format: 'mp4', videoCodec: 'libx264', audioCodec: 'aac', resolution: 'original', frameRate: 30, quality: 23, audioBitrate: 192, backdropMode: 'color', backdropColor: '#17130c', backdropImage: null, backdropImageUrl: '', outputWidth: 1920, outputHeight: 1080, cropX: 50, cropY: 50, cropScale: 100 })
+const settings = reactive<ProcessSettings>({ tool: 'convert', outputKind: 'video', presetId: 'compatible', format: 'mp4', videoCodec: 'libx264', audioCodec: 'aac', resolution: 'original', frameRate: 30, quality: 23, audioBitrate: 192, backdropMode: 'color', backdropColor: '#17130c', backdropImage: null, backdropImageUrl: '', outputWidth: 1920, outputHeight: 1080, cropX: 7, cropY: 7, cropWidth: 86, cropHeight: 86 })
 const presets = computed(() => settings.tool === 'compress' ? compressPresets : convertPresets[settings.outputKind])
 const formats = computed(() => media.value ? formatsFor(media.value.kind, settings.outputKind) : ['mp4'])
 const isAudioToVideo = computed(() => media.value?.kind === 'audio' && settings.outputKind === 'video')
 const canStart = computed(() => !isAudioToVideo.value || settings.backdropMode === 'color' || !!settings.backdropImage)
+const imageRatio = computed(() => imageWidth.value && imageHeight.value ? imageWidth.value / imageHeight.value : 16 / 9)
+const selectedRatio = computed(() => aspectRatios.find(item => item.id === aspectChoice.value)?.ratio || imageRatio.value)
 
 async function chooseFile(file: File) {
   error.value = ''
@@ -35,8 +44,73 @@ async function chooseFile(file: File) {
 function removeFile() { if (media.value) URL.revokeObjectURL(media.value.url); media.value = null; step.value = 1; error.value = '' }
 function setTool(tool: ToolMode) { settings.tool = tool; settings.presetId = tool === 'compress' ? 'balanced' : settings.outputKind === 'video' ? 'compatible' : 'listen-anywhere' }
 function setOutput(kind: OutputKind) { settings.outputKind = kind; settings.format = kind === 'video' ? 'mp4' : 'mp3'; settings.presetId = kind === 'video' ? 'compatible' : 'listen-anywhere' }
-function chooseBackdrop(files: FileList | null) { const file = files?.[0]; if (!file) return; if (settings.backdropImageUrl) URL.revokeObjectURL(settings.backdropImageUrl); settings.backdropImage = file; settings.backdropImageUrl = URL.createObjectURL(file) }
-function selectResolution(width: number, height: number) { settings.outputWidth = width; settings.outputHeight = height }
+async function chooseBackdrop(files: FileList | null) {
+  const file = files?.[0]
+  if (!file) return
+  if (settings.backdropImageUrl) URL.revokeObjectURL(settings.backdropImageUrl)
+  settings.backdropImage = file
+  settings.backdropImageUrl = URL.createObjectURL(file)
+  const image = new Image()
+  image.src = settings.backdropImageUrl
+  await image.decode()
+  imageWidth.value = image.naturalWidth
+  imageHeight.value = image.naturalHeight
+  resetCrop()
+  updateOutputDimensions()
+}
+function updateOutputDimensions() {
+  const ratio = selectedRatio.value
+  if (resolutionChoice.value === 0) {
+    if (imageWidth.value && imageHeight.value) {
+      settings.outputWidth = Math.max(2, Math.round(imageWidth.value * cropRect.width / 100 / 2) * 2)
+      settings.outputHeight = Math.max(2, Math.round(imageHeight.value * cropRect.height / 100 / 2) * 2)
+    } else if (ratio >= 1) { settings.outputHeight = 1080; settings.outputWidth = Math.round(1080 * ratio / 2) * 2 }
+    else { settings.outputWidth = 1080; settings.outputHeight = Math.round(1080 / ratio / 2) * 2 }
+  } else if (ratio >= 1) {
+    settings.outputHeight = resolutionChoice.value
+    settings.outputWidth = Math.round(resolutionChoice.value * ratio / 2) * 2
+  } else {
+    settings.outputWidth = resolutionChoice.value
+    settings.outputHeight = Math.round(resolutionChoice.value / ratio / 2) * 2
+  }
+}
+function resetCrop() {
+  if (aspectChoice.value === "original") { cropRect.x = 0; cropRect.y = 0; cropRect.width = 100; cropRect.height = 100; return }
+  const heightPerWidth = imageRatio.value / selectedRatio.value
+  let width = 86
+  let height = width * heightPerWidth
+  if (height > 86) { height = 86; width = height / heightPerWidth }
+  cropRect.width = width; cropRect.height = height
+  cropRect.x = (100 - width) / 2; cropRect.y = (100 - height) / 2
+}
+function selectAspect(id: string) { aspectChoice.value = id; resetCrop(); updateOutputDimensions() }
+function selectResolution(value: number) { resolutionChoice.value = value; updateOutputDimensions() }
+function beginCrop(event: PointerEvent, mode: 'move' | 'resize') {
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  cropGesture = { mode, startX: event.clientX, startY: event.clientY, ...cropRect }
+}
+function moveCrop(event: PointerEvent) {
+  if (!cropGesture || !cropper.value) return
+  const bounds = cropper.value.getBoundingClientRect()
+  const dx = (event.clientX - cropGesture.startX) / bounds.width * 100
+  const dy = (event.clientY - cropGesture.startY) / bounds.height * 100
+  if (cropGesture.mode === 'move') {
+    cropRect.x = Math.max(0, Math.min(100 - cropRect.width, cropGesture.x + dx))
+    cropRect.y = Math.max(0, Math.min(100 - cropRect.height, cropGesture.y + dy))
+  } else {
+    const heightPerWidth = imageRatio.value / selectedRatio.value
+    const width = Math.max(15, Math.min(100 - cropGesture.x, (100 - cropGesture.y) / heightPerWidth, cropGesture.width + dx))
+    cropRect.width = width
+    cropRect.height = width * heightPerWidth
+  }
+}
+function endCrop() { cropGesture = null; updateOutputDimensions() }
+watch(cropRect, (rect) => {
+  settings.cropX = rect.x
+  settings.cropY = rect.y
+  settings.cropWidth = rect.width
+  settings.cropHeight = rect.height
+}, { deep: true, immediate: true })
 async function start() { if (!media.value || !canStart.value) return; downloaded.value = false; step.value = 3; error.value = ''; try { result.value = await ffmpeg.process(media.value, settings); step.value = 4 } catch (reason) { if (step.value === 3) { error.value = reason instanceof Error ? reason.message : 'Processing stopped unexpectedly.'; step.value = 2 } } }
 function requestNavigation(target: number) {
   if (target >= step.value) return
@@ -100,13 +174,24 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
         <div v-if="isAudioToVideo" class="backdrop-panel">
           <div class="subheading"><span>What should the video show?</span><small>Your audio will play over this background</small></div>
           <div class="backdrop-tabs"><button :class="{ active: settings.backdropMode === 'color' }" @click="settings.backdropMode = 'color'"><Icon name="fluent:color-20-regular" /> Solid color</button><button :class="{ active: settings.backdropMode === 'image' }" @click="settings.backdropMode = 'image'"><Icon name="fluent:image-20-regular" /> Your image</button></div>
-          <div v-if="settings.backdropMode === 'color'" class="color-choice"><div class="color-preview" :style="{ background: settings.backdropColor }"><span class="audio-mark"><i v-for="n in 9" :key="n" :style="{ height: `${10 + (n % 4) * 8}px` }" /></span></div><label>Background color <span><input v-model="settings.backdropColor" type="color"><code>{{ settings.backdropColor.toUpperCase() }}</code></span></label></div>
+          <div v-if="settings.backdropMode === 'color'" class="solid-editor">
+            <div class="background-preview" :style="{ aspectRatio: selectedRatio, background: settings.backdropColor }" />
+            <label>Background color <span><input v-model="settings.backdropColor" type="color"><code>{{ settings.backdropColor.toUpperCase() }}</code></span></label>
+          </div>
           <div v-else class="image-choice">
             <label v-if="!settings.backdropImageUrl" class="image-upload"><Icon name="fluent:image-add-24-regular" /><strong>Choose a cover image</strong><span>JPG, PNG or WebP</span><input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
-            <div v-else class="cropper" :style="{ aspectRatio: `${settings.outputWidth}/${settings.outputHeight}` }"><img :src="settings.backdropImageUrl" alt="Cover crop preview" :style="{ objectPosition: `${settings.cropX}% ${settings.cropY}%`, transform: `scale(${settings.cropScale / 100})` }"><span class="crop-grid" /><label class="replace">Replace<input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label></div>
-            <div v-if="settings.backdropImageUrl" class="crop-controls"><label>Horizontal<input v-model="settings.cropX" type="range" min="0" max="100"></label><label>Vertical<input v-model="settings.cropY" type="range" min="0" max="100"></label><label>Zoom<input v-model="settings.cropScale" type="range" min="100" max="200"></label></div>
+            <div v-else ref="cropper" class="direct-cropper" :style="{ aspectRatio: imageRatio }">
+              <img :src="settings.backdropImageUrl" alt="Cover crop preview">
+              <div class="crop-selection" :style="{ left: cropRect.x + '%', top: cropRect.y + '%', width: cropRect.width + '%', height: cropRect.height + '%' }" @pointerdown="beginCrop($event, 'move')" @pointermove="moveCrop" @pointerup="endCrop" @pointercancel="endCrop"><span class="resize-handle" @pointerdown.stop="beginCrop($event, 'resize')" /></div>
+              <label class="replace">Replace<input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
+            </div>
+            <p v-if="settings.backdropImageUrl" class="crop-hint">Drag the frame to position it. Drag the corner to resize.</p>
           </div>
-          <div class="resolution-row"><span>Video shape</span><button v-for="resolution in resolutions" :key="resolution.label" :class="{ active: settings.outputWidth === resolution.width && settings.outputHeight === resolution.height }" @click="selectResolution(resolution.width, resolution.height)">{{ resolution.label }}<small>{{ resolution.width }} × {{ resolution.height }}</small></button><label class="custom-size"><input v-model.number="settings.outputWidth" type="number" min="240" max="3840"> × <input v-model.number="settings.outputHeight" type="number" min="240" max="3840"></label></div>
+          <div class="output-pickers">
+            <div><span>Aspect ratio</span><div class="choice-row"><button v-for="aspect in aspectRatios" :key="aspect.id" :class="{ active: aspectChoice === aspect.id }" @click="selectAspect(aspect.id)">{{ aspect.label }}</button></div></div>
+            <div><span>Resolution</span><div class="choice-row"><button v-for="resolution in outputResolutions" :key="resolution" :class="{ active: resolutionChoice === resolution }" @click="selectResolution(resolution)">{{ resolution ? resolution + 'p' : 'Original' }}</button></div></div>
+            <small>Output: {{ settings.outputWidth }} × {{ settings.outputHeight }}</small>
+          </div>
         </div>
 
         <div class="advanced"><button @click="showAdvanced = !showAdvanced"><span><Icon name="fluent:settings-20-regular" /> Advanced settings</span><Icon :name="showAdvanced ? 'fluent:chevron-up-20-regular' : 'fluent:chevron-down-20-regular'" /></button><div v-if="showAdvanced" class="advanced-grid"><label v-if="settings.outputKind === 'video'">Video codec<select v-model="settings.videoCodec"><option value="libx264">H.264</option><option value="libvpx-vp9">VP9</option></select></label><label v-if="settings.outputKind === 'video'">Frame rate<input v-model.number="settings.frameRate" type="number" min="12" max="60"></label><label v-if="settings.outputKind === 'video'">CRF quality<input v-model.number="settings.quality" type="number" min="0" max="51"></label><label>Audio bitrate<select v-model.number="settings.audioBitrate"><option :value="64">64 kbps</option><option :value="128">128 kbps</option><option :value="192">192 kbps</option><option :value="320">320 kbps</option></select></label></div></div>
@@ -149,4 +234,26 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
   transition: left .2s linear;
   pointer-events: none;
 }
+.solid-editor { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 18px; align-items: center; margin-top: 16px; }
+.background-preview { width: 100%; max-height: 260px; border-radius: 13px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.solid-editor label { display: grid; gap: 10px; color: var(--muted); font-size: 9px; }
+.solid-editor label span { display: flex; align-items: center; gap: 9px; }
+.solid-editor input { width: 36px; height: 36px; padding: 0; border: 0; background: transparent; }
+.solid-editor code { color: var(--text); }
+.direct-cropper { position: relative; width: min(100%, 560px); max-height: 360px; margin: 16px auto 0; overflow: hidden; border-radius: 13px; background: #111; touch-action: none; user-select: none; }
+.direct-cropper .replace { z-index: 3; }
+.direct-cropper > img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.direct-cropper::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.34); pointer-events: none; }
+.crop-selection { position: absolute; z-index: 2; border: 1px solid var(--accent); box-shadow: 0 0 0 999px rgba(0,0,0,.36), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); cursor: move; touch-action: none; }
+.crop-selection::before { content: ""; position: absolute; inset: 0; backdrop-filter: brightness(2.2); }
+.resize-handle { position: absolute; z-index: 2; right: -6px; bottom: -6px; width: 12px; height: 12px; border: 2px solid var(--surface-solid); border-radius: 50%; background: var(--accent); cursor: nwse-resize; }
+.crop-hint { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 8px; }
+.output-pickers { display: grid; gap: 14px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.output-pickers > div { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 10px; }
+.output-pickers > div > span { color: var(--muted); font-size: 9px; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice-row button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-size: 8px; }
+.choice-row button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.output-pickers > small { justify-self: end; color: var(--muted); font-size: 8px; }
+@media (max-width: 600px) { .solid-editor { grid-template-columns: 1fr; } .output-pickers > div { grid-template-columns: 1fr; } }
 </style>

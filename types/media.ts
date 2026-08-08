@@ -12,12 +12,6 @@ export interface MediaFileInfo {
   height: number
 }
 
-export interface Resolution {
-  label: string
-  width: number
-  height: number
-}
-
 export interface ProcessSettings {
   tool: ToolMode
   outputKind: OutputKind
@@ -37,7 +31,8 @@ export interface ProcessSettings {
   outputHeight: number
   cropX: number
   cropY: number
-  cropScale: number
+  cropWidth: number
+  cropHeight: number
 }
 
 export interface ProcessResult {
