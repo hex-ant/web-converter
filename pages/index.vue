@@ -56,7 +56,7 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
         </div>
         <div v-if="settings.tool === 'convert'" class="output-row"><span>Turn this into</span><div class="segmented"><button :class="{ active: settings.outputKind === 'video' }" @click="setOutput('video')"><Icon name="fluent:video-20-regular" /> Video</button><button :class="{ active: settings.outputKind === 'audio' }" @click="setOutput('audio')"><Icon name="fluent:music-note-2-20-regular" /> Audio only</button></div><select v-model="settings.format" aria-label="Output format"><option v-for="format in formats" :key="format" :value="format">.{{ format.toUpperCase() }}</option></select></div>
         <div class="subheading"><span>Choose what matters most</span><small>No technical knowledge needed</small></div>
-        <div class="preset-grid"><button v-for="preset in presets" :key="preset.id" class="preset" :class="{ selected: settings.presetId === preset.id }" @click="settings.presetId = preset.id"><span class="preset-icon"><Icon :name="preset.icon" /></span><strong>{{ preset.title }}</strong><small>{{ preset.description }}</small><span class="radio"><Icon v-if="settings.presetId === preset.id" name="fluent:checkmark-12-bold" /></span></button></div>
+        <div class="preset-grid"><button v-for="preset in presets" :key="preset.id" class="preset" :class="{ selected: settings.presetId === preset.id }" @click="settings.presetId = preset.id"><span class="preset-icon"><Icon :name="preset.icon" /></span><strong>{{ preset.title }}</strong><small>{{ preset.description }}</small><span class="radio"><Icon v-if="settings.presetId === preset.id" name="fluent:checkmark-12-filled" /></span></button></div>
 
         <div v-if="isAudioToVideo" class="backdrop-panel">
           <div class="subheading"><span>What should the video show?</span><small>Your audio will play over this background</small></div>
@@ -81,7 +81,7 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
       </section>
 
       <section v-else-if="step === 4 && media && result" class="done">
-        <div class="done-icon"><Icon name="fluent:checkmark-32-bold" /></div><span class="kicker">All done</span><h1>Your file is ready.</h1><p>Converted entirely on your device. Nothing was uploaded anywhere.</p>
+        <div class="done-icon"><Icon name="fluent:checkmark-32-filled" /></div><span class="kicker">All done</span><h1>Your file is ready.</h1><p>Converted entirely on your device. Nothing was uploaded anywhere.</p>
         <div class="result-card"><span class="result-icon"><Icon :name="settings.outputKind === 'video' ? 'fluent:video-24-regular' : 'fluent:music-note-2-24-regular'" /></span><div><strong>{{ result.fileName }}</strong><span>{{ size(result.size) }}<template v-if="savings"> · {{ savings }}% smaller</template></span></div><a :href="result.url" :download="result.fileName"><Icon name="fluent:arrow-download-20-regular" /> Download</a></div>
         <button class="again" @click="reset"><Icon name="fluent:add-20-regular" /> Work on another file</button>
       </section>

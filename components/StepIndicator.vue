@@ -7,7 +7,7 @@ const steps = ['Choose file', 'Set your goal', 'Processing', 'Done']
   <nav class="steps" aria-label="Progress">
     <template v-for="(label, index) in steps" :key="label">
       <div class="step" :class="{ active: index + 1 === current, complete: index + 1 < current }">
-        <span class="number"><Icon v-if="index + 1 < current" name="fluent:checkmark-16-bold" /><template v-else>{{ index + 1 }}</template></span>
+        <span class="number"><Icon v-if="index + 1 < current" name="fluent:checkmark-16-filled" /><template v-else>{{ index + 1 }}</template></span>
         <span class="label">{{ label }}</span>
       </div>
       <span v-if="index < steps.length - 1" class="line" :class="{ filled: index + 1 < current }" />
