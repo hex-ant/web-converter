@@ -13,16 +13,27 @@ const stem = (name: string) => name.replace(/\.[^/.]+$/, '')
 
 export function useFfmpeg() {
   const progress = ref(0)
+  const processedTime = ref(0)
   const status = ref('Preparing the workspace…')
   const logs = ref<string[]>([])
+  let activeDuration = 0
 
   const load = async () => {
     if (!engine) {
       engine = new FFmpeg()
-      engine.on('progress', ({ progress: value }) => { progress.value = Math.max(0, Math.min(1, value)) })
+      engine.on('progress', ({ progress: value, time }) => {
+        progress.value = Math.max(0, Math.min(1, value))
+        // FFmpeg reports its processed media timestamp in microseconds.
+        processedTime.value = time > 0 ? time / 1_000_000 : activeDuration * progress.value
+      })
       engine.on('log', ({ message }) => {
         console.debug('[ffmpeg]', message)
         logs.value = [...logs.value.slice(-19), message]
+        const timestamp = message.match(/time=(-?\d+):(\d+):(\d+(?:\.\d+)?)/)
+        if (timestamp) {
+          const [, hours, minutes, seconds] = timestamp
+          processedTime.value = Math.max(0, Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds))
+        }
         if (message.includes('frame=')) status.value = 'Shaping every frame…'
         else if (message.includes('time=')) status.value = 'Encoding your media…'
       })
@@ -36,6 +47,8 @@ export function useFfmpeg() {
 
   const process = async (media: MediaFileInfo, settings: ProcessSettings): Promise<ProcessResult> => {
     progress.value = 0
+    processedTime.value = 0
+    activeDuration = media.duration
     logs.value = []
     await load()
     if (!engine) throw new Error('The media engine did not start.')
@@ -101,5 +114,5 @@ export function useFfmpeg() {
     loadPromise = null
   }
 
-  return { progress: readonly(progress), status: readonly(status), logs: readonly(logs), process, cancel }
+  return { progress: readonly(progress), processedTime: readonly(processedTime), status: readonly(status), logs: readonly(logs), process, cancel }
 }
