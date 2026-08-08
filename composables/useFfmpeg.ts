@@ -21,6 +21,7 @@ export function useFfmpeg() {
       engine = new FFmpeg()
       engine.on('progress', ({ progress: value }) => { progress.value = Math.max(0, Math.min(1, value)) })
       engine.on('log', ({ message }) => {
+        console.debug('[ffmpeg]', message)
         logs.value = [...logs.value.slice(-19), message]
         if (message.includes('frame=')) status.value = 'Shaping every frame…'
         else if (message.includes('time=')) status.value = 'Encoding your media…'

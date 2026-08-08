@@ -12,6 +12,13 @@ export default defineNuxtConfig({
   icon: {
     clientBundle: { scan: true, sizeLimitKb: 256 }
   },
+  vite: {
+    optimizeDeps: {
+      // FFmpeg resolves its module worker relative to its own package. Vite's
+      // dev prebundle moves that import and otherwise points it at a 404 URL.
+      exclude: ['@ffmpeg/ffmpeg']
+    }
+  },
   app: {
     head: {
       title: 'Amber — Local media converter',

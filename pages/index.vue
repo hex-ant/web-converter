@@ -76,7 +76,7 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
       </section>
 
       <section v-else-if="step === 3 && media" class="processing">
-        <div class="processing-visual"><video v-if="media.kind === 'video'" :src="media.url" muted autoplay loop /><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-32-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><div class="scan" /><span class="live"><i /> Processing locally</span></div>
+        <div class="processing-visual"><video v-if="media.kind === 'video'" :src="media.url" muted autoplay loop /><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-24-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><div class="scan" /><span class="live"><i /> Processing locally</span></div>
         <span class="kicker">Almost there</span><h1>{{ ffmpeg.status.value }}</h1><p>{{ Math.round(ffmpeg.progress.value * 100) }}% complete · Keep this tab open</p><div class="progress"><i :style="{ width: `${Math.max(2, ffmpeg.progress.value * 100)}%` }" /></div><button @click="ffmpeg.cancel(); step = 2">Cancel</button>
       </section>
 
