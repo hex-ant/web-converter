@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/util": "^0.12.2",
     "@fontsource/sora": "^5.2.6",
     "@iconify-json/fluent": "^1.2.29",

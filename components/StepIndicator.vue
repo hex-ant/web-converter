@@ -1,0 +1,28 @@
+<script setup lang="ts">
+defineProps<{ current: number }>()
+const steps = ['Choose file', 'Set your goal', 'Processing', 'Done']
+</script>
+
+<template>
+  <nav class="steps" aria-label="Progress">
+    <template v-for="(label, index) in steps" :key="label">
+      <div class="step" :class="{ active: index + 1 === current, complete: index + 1 < current }">
+        <span class="number"><Icon v-if="index + 1 < current" name="fluent:checkmark-16-bold" /><template v-else>{{ index + 1 }}</template></span>
+        <span class="label">{{ label }}</span>
+      </div>
+      <span v-if="index < steps.length - 1" class="line" :class="{ filled: index + 1 < current }" />
+    </template>
+  </nav>
+</template>
+
+<style scoped>
+.steps { display: flex; align-items: center; justify-content: center; width: min(650px, 100%); margin: 18px auto 42px; }
+.step { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.number { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; font-size: 11px; font-weight: 600; }
+.step.active { color: var(--text); }
+.step.active .number { background: var(--accent); color: #291900; border-color: var(--accent); }
+.step.complete .number { color: var(--accent-strong); background: var(--accent-soft); border-color: transparent; }
+.line { width: clamp(18px, 7vw, 74px); height: 1px; background: var(--line); margin: 0 12px; }
+.line.filled { background: var(--accent); }
+@media (max-width: 600px) { .steps { margin-bottom: 30px; } .label { display: none; } .line { flex: 1; } }
+</style>
