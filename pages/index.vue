@@ -5,6 +5,8 @@ import { compressPresets, convertPresets, formatsFor, resolutions } from '~/util
 const step = ref(1)
 const media = ref<MediaFileInfo | null>(null)
 const result = ref<ProcessResult | null>(null)
+const downloaded = ref(false)
+const pendingNavigation = ref<number | null>(null)
 const error = ref('')
 const probing = ref(false)
 const showAdvanced = ref(false)
@@ -35,8 +37,23 @@ function setTool(tool: ToolMode) { settings.tool = tool; settings.presetId = too
 function setOutput(kind: OutputKind) { settings.outputKind = kind; settings.format = kind === 'video' ? 'mp4' : 'mp3'; settings.presetId = kind === 'video' ? 'compatible' : 'listen-anywhere' }
 function chooseBackdrop(files: FileList | null) { const file = files?.[0]; if (!file) return; if (settings.backdropImageUrl) URL.revokeObjectURL(settings.backdropImageUrl); settings.backdropImage = file; settings.backdropImageUrl = URL.createObjectURL(file) }
 function selectResolution(width: number, height: number) { settings.outputWidth = width; settings.outputHeight = height }
-async function start() { if (!media.value || !canStart.value) return; step.value = 3; error.value = ''; try { result.value = await ffmpeg.process(media.value, settings); step.value = 4 } catch (reason) { error.value = reason instanceof Error ? reason.message : 'Processing stopped unexpectedly.'; step.value = 2 } }
-function reset() { if (result.value) URL.revokeObjectURL(result.value.url); result.value = null; removeFile() }
+async function start() { if (!media.value || !canStart.value) return; downloaded.value = false; step.value = 3; error.value = ''; try { result.value = await ffmpeg.process(media.value, settings); step.value = 4 } catch (reason) { if (step.value === 3) { error.value = reason instanceof Error ? reason.message : 'Processing stopped unexpectedly.'; step.value = 2 } } }
+function requestNavigation(target: number) {
+  if (target >= step.value) return
+  if (step.value === 3 || (step.value === 4 && !downloaded.value)) pendingNavigation.value = target
+  else navigateToStep(target)
+}
+function navigateToStep(target: number) {
+  pendingNavigation.value = null
+  if (step.value === 3) ffmpeg.cancel()
+  if (result.value) { URL.revokeObjectURL(result.value.url); result.value = null }
+  downloaded.value = false
+  if (target === 1) { removeFile(); return }
+  if (target === 2) { step.value = 2; return }
+  if (target === 3) start()
+}
+function confirmNavigation() { if (pendingNavigation.value !== null) navigateToStep(pendingNavigation.value) }
+function handleBeforeUnload(event: BeforeUnloadEvent) { if (step.value === 3 || (step.value === 4 && !downloaded.value)) event.preventDefault() }
 const size = (bytes: number) => bytes > 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${(bytes / 1e6).toFixed(1)} MB`
 const savings = computed(() => media.value && result.value ? Math.max(0, Math.round((1 - result.value.size / media.value.file.size) * 100)) : 0)
 function drawPixelatedFrame() {
@@ -58,14 +75,15 @@ watch(() => ffmpeg.processedTime.value, (time) => {
   if (!video || !Number.isFinite(time) || Math.abs(video.currentTime - time) < 0.08) return
   video.currentTime = Math.min(time, Math.max(0, (video.duration || media.value?.duration || 0) - 0.01))
 })
-onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); if (result.value) URL.revokeObjectURL(result.value.url); if (settings.backdropImageUrl) URL.revokeObjectURL(settings.backdropImageUrl) })
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
+onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeUnload); if (media.value) URL.revokeObjectURL(media.value.url); if (result.value) URL.revokeObjectURL(result.value.url); if (settings.backdropImageUrl) URL.revokeObjectURL(settings.backdropImageUrl) })
 </script>
 
 <template>
   <div class="app-shell">
-    <AppHeader />
+    <AppHeader @home="requestNavigation(1)" />
     <main>
-      <StepIndicator :current="step" />
+      <StepIndicator :current="step" @navigate="requestNavigation" />
       <DropZone v-if="step === 1" :busy="probing" :error="error" @select="chooseFile" />
 
       <section v-else-if="step === 2 && media" class="workspace">
@@ -98,16 +116,17 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
 
       <section v-else-if="step === 3 && media" class="processing">
         <div class="processing-visual"><template v-if="media.kind === 'video'"><video ref="processingVideo" :src="media.url" muted playsinline preload="auto" @loadeddata="drawPixelatedFrame" @seeked="drawPixelatedFrame" /><canvas ref="pixelatedFrame" class="pixelated-frame" width="96" height="52" :style="{ clipPath: `inset(0 0 0 ${ffmpeg.progress.value * 100}%)` }" /><span class="split-boundary" :style="{ left: `${ffmpeg.progress.value * 100}%` }" /></template><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-24-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><span class="live"><i /> Processing locally</span></div>
-        <span class="kicker">Almost there</span><h1>{{ ffmpeg.status.value }}</h1><p>{{ Math.round(ffmpeg.progress.value * 100) }}% complete · Keep this tab open</p><div class="progress"><i :style="{ width: `${Math.max(2, ffmpeg.progress.value * 100)}%` }" /></div><button @click="ffmpeg.cancel(); step = 2">Cancel</button>
+        <span class="kicker">Almost there</span><h1>{{ ffmpeg.status.value }}</h1><p>{{ Math.round(ffmpeg.progress.value * 100) }}% complete · Keep this tab open</p><div class="progress"><i :style="{ width: `${Math.max(2, ffmpeg.progress.value * 100)}%` }" /></div><button @click="requestNavigation(2)">Cancel</button>
       </section>
 
       <section v-else-if="step === 4 && media && result" class="done">
         <div class="done-icon"><Icon name="fluent:checkmark-32-filled" /></div><span class="kicker">All done</span><h1>Your file is ready.</h1><p>Converted entirely on your device. Nothing was uploaded anywhere.</p>
-        <div class="result-card"><span class="result-icon"><Icon :name="settings.outputKind === 'video' ? 'fluent:video-24-regular' : 'fluent:music-note-2-24-regular'" /></span><div><strong>{{ result.fileName }}</strong><span>{{ size(result.size) }}<template v-if="savings"> · {{ savings }}% smaller</template></span></div><a :href="result.url" :download="result.fileName"><Icon name="fluent:arrow-download-20-regular" /> Download</a></div>
-        <button class="again" @click="reset"><Icon name="fluent:add-20-regular" /> Work on another file</button>
+        <div class="result-card"><span class="result-icon"><Icon :name="settings.outputKind === 'video' ? 'fluent:video-24-regular' : 'fluent:music-note-2-24-regular'" /></span><div><strong>{{ result.fileName }}</strong><span>{{ size(result.size) }}<template v-if="savings"> · {{ savings }}% smaller</template></span></div><a :href="result.url" :download="result.fileName" @click="downloaded = true"><Icon name="fluent:arrow-download-20-regular" /> Download</a></div>
+        <button class="again" @click="requestNavigation(1)"><Icon name="fluent:add-20-regular" /> Work on another file</button>
       </section>
     </main>
     <footer class="site-footer">Made for you, not your data. <span>·</span> Runs with FFmpeg WebAssembly</footer>
+    <ConfirmNavigationModal v-if="pendingNavigation !== null" :processing="step === 3" @cancel="pendingNavigation = null" @confirm="confirmNavigation" />
   </div>
 </template>
 
