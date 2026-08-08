@@ -9,6 +9,7 @@ const error = ref('')
 const probing = ref(false)
 const showAdvanced = ref(false)
 const processingVideo = ref<HTMLVideoElement | null>(null)
+const pixelatedFrame = ref<HTMLCanvasElement | null>(null)
 const { probe } = useMediaProbe()
 const ffmpeg = useFfmpeg()
 const settings = reactive<ProcessSettings>({ tool: 'convert', outputKind: 'video', presetId: 'compatible', format: 'mp4', videoCodec: 'libx264', audioCodec: 'aac', resolution: 'original', frameRate: 30, quality: 23, audioBitrate: 192, backdropMode: 'color', backdropColor: '#17130c', backdropImage: null, backdropImageUrl: '', outputWidth: 1920, outputHeight: 1080, cropX: 50, cropY: 50, cropScale: 100 })
@@ -38,6 +39,20 @@ async function start() { if (!media.value || !canStart.value) return; step.value
 function reset() { if (result.value) URL.revokeObjectURL(result.value.url); result.value = null; removeFile() }
 const size = (bytes: number) => bytes > 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${(bytes / 1e6).toFixed(1)} MB`
 const savings = computed(() => media.value && result.value ? Math.max(0, Math.round((1 - result.value.size / media.value.file.size) * 100)) : 0)
+function drawPixelatedFrame() {
+  const video = processingVideo.value
+  const canvas = pixelatedFrame.value
+  if (!video || !canvas || !video.videoWidth || !video.videoHeight) return
+  const context = canvas.getContext('2d')
+  if (!context) return
+  const targetRatio = canvas.width / canvas.height
+  const sourceRatio = video.videoWidth / video.videoHeight
+  let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight
+  if (sourceRatio > targetRatio) { sw = video.videoHeight * targetRatio; sx = (video.videoWidth - sw) / 2 }
+  else { sh = video.videoWidth / targetRatio; sy = (video.videoHeight - sh) / 2 }
+  context.imageSmoothingEnabled = false
+  context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+}
 watch(() => ffmpeg.processedTime.value, (time) => {
   const video = processingVideo.value
   if (!video || !Number.isFinite(time) || Math.abs(video.currentTime - time) < 0.08) return
@@ -82,7 +97,7 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
       </section>
 
       <section v-else-if="step === 3 && media" class="processing">
-        <div class="processing-visual"><video v-if="media.kind === 'video'" ref="processingVideo" :src="media.url" muted playsinline preload="auto" /><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-24-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><div class="scan" /><span class="live"><i /> Processing locally</span></div>
+        <div class="processing-visual"><template v-if="media.kind === 'video'"><video ref="processingVideo" :src="media.url" muted playsinline preload="auto" @loadeddata="drawPixelatedFrame" @seeked="drawPixelatedFrame" /><canvas ref="pixelatedFrame" class="pixelated-frame" width="96" height="52" :style="{ clipPath: `inset(0 0 0 ${ffmpeg.progress.value * 100}%)` }" /></template><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-24-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><span class="live"><i /> Processing locally</span></div>
         <span class="kicker">Almost there</span><h1>{{ ffmpeg.status.value }}</h1><p>{{ Math.round(ffmpeg.progress.value * 100) }}% complete · Keep this tab open</p><div class="progress"><i :style="{ width: `${Math.max(2, ffmpeg.progress.value * 100)}%` }" /></div><button @click="ffmpeg.cancel(); step = 2">Cancel</button>
       </section>
 
