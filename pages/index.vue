@@ -86,7 +86,7 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
         <button class="again" @click="reset"><Icon name="fluent:add-20-regular" /> Work on another file</button>
       </section>
     </main>
-    <footer class="site-footer">Made for your files, not your data. <span>·</span> Runs with FFmpeg WebAssembly</footer>
+    <footer class="site-footer">Made for you, not your data. <span>·</span> Runs with FFmpeg WebAssembly</footer>
   </div>
 </template>
 
