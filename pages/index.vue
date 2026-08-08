@@ -17,8 +17,11 @@ const imageWidth = ref(0)
 const imageHeight = ref(0)
 const aspectChoice = ref('16:9')
 const resolutionChoice = ref(1080)
+const customWidth = ref(1920)
+const customHeight = ref(1080)
 const cropRect = reactive({ x: 7, y: 7, width: 86, height: 86 })
-let cropGesture: { mode: 'move' | 'resize'; startX: number; startY: number; x: number; y: number; width: number; height: number } | null = null
+type CropGestureMode = 'move' | 'nw' | 'ne' | 'sw' | 'se'
+let cropGesture: { mode: CropGestureMode; startX: number; startY: number; x: number; y: number; width: number; height: number } | null = null
 const { probe } = useMediaProbe()
 const ffmpeg = useFfmpeg()
 const settings = reactive<ProcessSettings>({ tool: 'convert', outputKind: 'video', presetId: 'compatible', format: 'mp4', videoCodec: 'libx264', audioCodec: 'aac', resolution: 'original', frameRate: 30, quality: 23, audioBitrate: 192, backdropMode: 'color', backdropColor: '#17130c', backdropImage: null, backdropImageUrl: '', outputWidth: 1920, outputHeight: 1080, cropX: 7, cropY: 7, cropWidth: 86, cropHeight: 86 })
@@ -60,7 +63,10 @@ async function chooseBackdrop(files: FileList | null) {
 }
 function updateOutputDimensions() {
   const ratio = selectedRatio.value
-  if (resolutionChoice.value === 0) {
+  if (resolutionChoice.value === -1) {
+    settings.outputWidth = customWidth.value
+    settings.outputHeight = customHeight.value
+  } else if (resolutionChoice.value === 0) {
     if (imageWidth.value && imageHeight.value) {
       settings.outputWidth = Math.max(2, Math.round(imageWidth.value * cropRect.width / 100 / 2) * 2)
       settings.outputHeight = Math.max(2, Math.round(imageHeight.value * cropRect.height / 100 / 2) * 2)
@@ -83,9 +89,32 @@ function resetCrop() {
   cropRect.width = width; cropRect.height = height
   cropRect.x = (100 - width) / 2; cropRect.y = (100 - height) / 2
 }
-function selectAspect(id: string) { aspectChoice.value = id; resetCrop(); updateOutputDimensions() }
+function selectAspect(id: string) {
+  aspectChoice.value = id
+  resetCrop()
+  if (resolutionChoice.value === -1) setCustomDimension('width', customWidth.value)
+  else updateOutputDimensions()
+}
 function selectResolution(value: number) { resolutionChoice.value = value; updateOutputDimensions() }
-function beginCrop(event: PointerEvent, mode: 'move' | 'resize') {
+function enableCustomResolution() {
+  customWidth.value = settings.outputWidth
+  customHeight.value = settings.outputHeight
+  resolutionChoice.value = -1
+  updateOutputDimensions()
+}
+function setCustomDimension(axis: 'width' | 'height', value: number) {
+  const safeValue = Math.max(2, Math.min(7680, Math.round(value || 2)))
+  resolutionChoice.value = -1
+  if (axis === 'width') {
+    customWidth.value = safeValue
+    customHeight.value = Math.max(2, Math.round(safeValue / selectedRatio.value / 2) * 2)
+  } else {
+    customHeight.value = safeValue
+    customWidth.value = Math.max(2, Math.round(safeValue * selectedRatio.value / 2) * 2)
+  }
+  updateOutputDimensions()
+}
+function beginCrop(event: PointerEvent, mode: CropGestureMode) {
   ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
   cropGesture = { mode, startX: event.clientX, startY: event.clientY, ...cropRect }
 }
@@ -99,9 +128,19 @@ function moveCrop(event: PointerEvent) {
     cropRect.y = Math.max(0, Math.min(100 - cropRect.height, cropGesture.y + dy))
   } else {
     const heightPerWidth = imageRatio.value / selectedRatio.value
-    const width = Math.max(15, Math.min(100 - cropGesture.x, (100 - cropGesture.y) / heightPerWidth, cropGesture.width + dx))
+    const fromLeft = cropGesture.mode.endsWith('w')
+    const fromTop = cropGesture.mode.startsWith('n')
+    const horizontalChange = fromLeft ? -dx : dx
+    const verticalChange = (fromTop ? -dy : dy) / heightPerWidth
+    const change = Math.abs(horizontalChange) > Math.abs(verticalChange) ? horizontalChange : verticalChange
+    const maxHorizontal = fromLeft ? cropGesture.x + cropGesture.width : 100 - cropGesture.x
+    const maxVertical = (fromTop ? cropGesture.y + cropGesture.height : 100 - cropGesture.y) / heightPerWidth
+    const width = Math.max(15, Math.min(maxHorizontal, maxVertical, cropGesture.width + change))
+    const height = width * heightPerWidth
     cropRect.width = width
-    cropRect.height = width * heightPerWidth
+    cropRect.height = height
+    cropRect.x = fromLeft ? cropGesture.x + cropGesture.width - width : cropGesture.x
+    cropRect.y = fromTop ? cropGesture.y + cropGesture.height - height : cropGesture.y
   }
 }
 function endCrop() { cropGesture = null; updateOutputDimensions() }
@@ -180,16 +219,16 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
           </div>
           <div v-else class="image-choice">
             <label v-if="!settings.backdropImageUrl" class="image-upload"><Icon name="fluent:image-add-24-regular" /><strong>Choose a cover image</strong><span>JPG, PNG or WebP</span><input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
-            <div v-else ref="cropper" class="direct-cropper" :style="{ aspectRatio: imageRatio }">
+            <div v-else ref="cropper" class="direct-cropper" :style="{ aspectRatio: imageRatio, maxWidth: Math.min(560, 360 * imageRatio) + 'px' }">
               <img :src="settings.backdropImageUrl" alt="Cover crop preview">
-              <div class="crop-selection" :style="{ left: cropRect.x + '%', top: cropRect.y + '%', width: cropRect.width + '%', height: cropRect.height + '%' }" @pointerdown="beginCrop($event, 'move')" @pointermove="moveCrop" @pointerup="endCrop" @pointercancel="endCrop"><span class="resize-handle" @pointerdown.stop="beginCrop($event, 'resize')" /></div>
+              <div class="crop-selection" :style="{ left: cropRect.x + '%', top: cropRect.y + '%', width: cropRect.width + '%', height: cropRect.height + '%' }" @pointerdown="beginCrop($event, 'move')" @pointermove="moveCrop" @pointerup="endCrop" @pointercancel="endCrop"><span v-for="corner in ['nw', 'ne', 'sw', 'se'] as const" :key="corner" class="resize-handle" :class="corner" @pointerdown.stop="beginCrop($event, corner)" /></div>
               <label class="replace">Replace<input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
             </div>
             <p v-if="settings.backdropImageUrl" class="crop-hint">Drag the frame to position it. Drag the corner to resize.</p>
           </div>
           <div class="output-pickers">
             <div><span>Aspect ratio</span><div class="choice-row"><button v-for="aspect in aspectRatios" :key="aspect.id" :class="{ active: aspectChoice === aspect.id }" @click="selectAspect(aspect.id)">{{ aspect.label }}</button></div></div>
-            <div><span>Resolution</span><div class="choice-row"><button v-for="resolution in outputResolutions" :key="resolution" :class="{ active: resolutionChoice === resolution }" @click="selectResolution(resolution)">{{ resolution ? resolution + 'p' : 'Original' }}</button></div></div>
+            <div><span>Resolution</span><div class="choice-row"><button v-for="resolution in outputResolutions" :key="resolution" :class="{ active: resolutionChoice === resolution }" @click="selectResolution(resolution)">{{ resolution ? resolution + 'p' : 'Original' }}</button><button :class="{ active: resolutionChoice === -1 }" @click="enableCustomResolution">Custom</button><label v-if="resolutionChoice === -1" class="custom-resolution"><input v-model.number="customWidth" type="number" min="2" max="7680" @change="setCustomDimension('width', customWidth)"><span>×</span><input v-model.number="customHeight" type="number" min="2" max="7680" @change="setCustomDimension('height', customHeight)"></label></div></div>
             <small>Output: {{ settings.outputWidth }} × {{ settings.outputHeight }}</small>
           </div>
         </div>
@@ -240,13 +279,17 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 .solid-editor label span { display: flex; align-items: center; gap: 9px; }
 .solid-editor input { width: 36px; height: 36px; padding: 0; border: 0; background: transparent; }
 .solid-editor code { color: var(--text); }
-.direct-cropper { position: relative; width: min(100%, 560px); max-height: 360px; margin: 16px auto 0; overflow: hidden; border-radius: 13px; background: #111; touch-action: none; user-select: none; }
+.direct-cropper { position: relative; width: 100%; margin: 16px auto 0; overflow: hidden; border-radius: 13px; background: #111; touch-action: none; user-select: none; }
 .direct-cropper .replace { z-index: 3; }
 .direct-cropper > img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .direct-cropper::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.34); pointer-events: none; }
 .crop-selection { position: absolute; z-index: 2; border: 1px solid var(--accent); box-shadow: 0 0 0 999px rgba(0,0,0,.36), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); cursor: move; touch-action: none; }
 .crop-selection::before { content: ""; position: absolute; inset: 0; backdrop-filter: brightness(2.2); }
-.resize-handle { position: absolute; z-index: 2; right: -6px; bottom: -6px; width: 12px; height: 12px; border: 2px solid var(--surface-solid); border-radius: 50%; background: var(--accent); cursor: nwse-resize; }
+.resize-handle { position: absolute; z-index: 2; width: 12px; height: 12px; border: 2px solid var(--surface-solid); border-radius: 50%; background: var(--accent); }
+.resize-handle.nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.resize-handle.ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.resize-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.resize-handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .crop-hint { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 8px; }
 .output-pickers { display: grid; gap: 14px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
 .output-pickers > div { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 10px; }
@@ -254,6 +297,8 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 .choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .choice-row button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-size: 8px; }
 .choice-row button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.custom-resolution { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
+.custom-resolution input { width: 65px; padding: 7px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-solid); color: var(--text); font-size: 8px; }
 .output-pickers > small { justify-self: end; color: var(--muted); font-size: 8px; }
 @media (max-width: 600px) { .solid-editor { grid-template-columns: 1fr; } .output-pickers > div { grid-template-columns: 1fr; } }
 </style>
