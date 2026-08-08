@@ -123,10 +123,10 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
   z-index: 2;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 1px;
   background: var(--accent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
-  transform: translateX(-1px);
+  transform: translateX(-.5px);
   transition: left .2s linear;
   pointer-events: none;
 }
