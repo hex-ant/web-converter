@@ -97,7 +97,7 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
       </section>
 
       <section v-else-if="step === 3 && media" class="processing">
-        <div class="processing-visual"><template v-if="media.kind === 'video'"><video ref="processingVideo" :src="media.url" muted playsinline preload="auto" @loadeddata="drawPixelatedFrame" @seeked="drawPixelatedFrame" /><canvas ref="pixelatedFrame" class="pixelated-frame" width="96" height="52" :style="{ clipPath: `inset(0 0 0 ${ffmpeg.progress.value * 100}%)` }" /></template><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-24-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><span class="live"><i /> Processing locally</span></div>
+        <div class="processing-visual"><template v-if="media.kind === 'video'"><video ref="processingVideo" :src="media.url" muted playsinline preload="auto" @loadeddata="drawPixelatedFrame" @seeked="drawPixelatedFrame" /><canvas ref="pixelatedFrame" class="pixelated-frame" width="96" height="52" :style="{ clipPath: `inset(0 0 0 ${ffmpeg.progress.value * 100}%)` }" /><span class="split-boundary" :style="{ left: `${ffmpeg.progress.value * 100}%` }" /></template><div v-else class="audio-visual"><span class="disc"><Icon name="fluent:music-note-2-24-filled" /></span><div class="wave"><i v-for="n in 34" :key="n" :style="{ animationDelay: `${n * -0.07}s` }" /></div></div><span class="live"><i /> Processing locally</span></div>
         <span class="kicker">Almost there</span><h1>{{ ffmpeg.status.value }}</h1><p>{{ Math.round(ffmpeg.progress.value * 100) }}% complete · Keep this tab open</p><div class="progress"><i :style="{ width: `${Math.max(2, ffmpeg.progress.value * 100)}%` }" /></div><button @click="ffmpeg.cancel(); step = 2">Cancel</button>
       </section>
 
@@ -112,3 +112,22 @@ onBeforeUnmount(() => { if (media.value) URL.revokeObjectURL(media.value.url); i
 </template>
 
 <style scoped src="~/assets/css/page.css"></style>
+
+<style scoped>
+.pixelated-frame {
+  filter: brightness(.58) saturate(.72);
+}
+
+.split-boundary {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 0 10px rgba(0, 0, 0, .55), 0 0 4px rgba(255, 255, 255, .55);
+  transform: translateX(-1px);
+  transition: left .2s linear;
+  pointer-events: none;
+}
+</style>
