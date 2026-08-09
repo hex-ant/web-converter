@@ -21,7 +21,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'Amber — Local media converter',
+      title: 'withconvert — Local media converter',
       meta: [
         { name: 'description', content: 'Convert and compress video or audio privately in your browser.' },
         { name: 'theme-color', content: '#f59e0b' }
