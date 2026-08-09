@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import type { MediaFileInfo, ProcessResult, ProcessSettings, ToolMode, OutputKind } from '~/types/media'
-import { aspectRatios, compressPresets, convertPresets, formatsFor, outputResolutions } from '~/utils/presets'
+import type { MediaFileInfo, ProcessResult, ProcessSettings, Workflow } from '~/types/media'
+import type { Preset } from '~/utils/presets'
+import { aspectRatios, formatsFor, outputResolutions, workflowPresets, workflowsFor } from '~/utils/presets'
 
 const step = ref(1)
 const media = ref<MediaFileInfo | null>(null)
 const result = ref<ProcessResult | null>(null)
+const workflow = ref<Workflow | null>(null)
 const downloaded = ref(false)
 const pendingNavigation = ref<number | null>(null)
 const error = ref('')
@@ -25,9 +27,21 @@ let cropGesture: { mode: CropGestureMode; startX: number; startY: number; x: num
 const { probe } = useMediaProbe()
 const ffmpeg = useFfmpeg()
 const settings = reactive<ProcessSettings>({ tool: 'convert', outputKind: 'video', presetId: 'compatible', format: 'mp4', videoCodec: 'libx264', audioCodec: 'aac', resolution: 'original', frameRate: 30, quality: 23, audioBitrate: 192, backdropMode: 'color', backdropColor: '#17130c', backdropImage: null, backdropImageUrl: '', outputWidth: 1920, outputHeight: 1080, cropX: 7, cropY: 7, cropWidth: 86, cropHeight: 86 })
-const presets = computed(() => settings.tool === 'compress' ? compressPresets : convertPresets[settings.outputKind])
+const availableWorkflows = computed(() => media.value ? workflowsFor[media.value.kind] : [])
+const activeWorkflow = computed(() => availableWorkflows.value.find(item => item.id === workflow.value))
+const presets = computed(() => workflow.value ? workflowPresets[workflow.value] : [])
 const formats = computed(() => media.value ? formatsFor(media.value.kind, settings.outputKind) : ['mp4'])
-const isAudioToVideo = computed(() => media.value?.kind === 'audio' && settings.outputKind === 'video')
+const isAudioToVideo = computed(() => workflow.value === 'audio-video')
+const hasVideoEncodingOptions = computed(() => workflow.value === 'video-compress' || workflow.value === 'video-convert')
+const actionLabel = computed(() => ({
+  'video-compress': 'Make video smaller', 'video-convert': 'Convert video', 'video-audio': 'Extract audio',
+  'audio-compress': 'Make audio smaller', 'audio-convert': 'Convert audio', 'audio-video': 'Create video'
+}[workflow.value || 'video-convert']))
+const videoCodecOptions = computed(() => settings.format === 'webm' ? [{ value: 'libvpx-vp9', label: 'VP9' }] : [{ value: 'libx264', label: 'H.264' }])
+const audioCodecOptions = computed(() => ({
+  mp3: [{ value: 'libmp3lame', label: 'MP3' }], wav: [{ value: 'pcm_s16le', label: 'PCM (lossless)' }],
+  ogg: [{ value: 'libvorbis', label: 'Vorbis' }], webm: [{ value: 'libopus', label: 'Opus' }]
+}[settings.format] || [{ value: 'aac', label: 'AAC' }]))
 const canStart = computed(() => !isAudioToVideo.value || settings.backdropMode === 'color' || !!settings.backdropImage)
 const imageRatio = computed(() => imageWidth.value && imageHeight.value ? imageWidth.value / imageHeight.value : 16 / 9)
 const selectedRatio = computed(() => aspectRatios.find(item => item.id === aspectChoice.value)?.ratio || imageRatio.value)
@@ -38,15 +52,32 @@ async function chooseFile(file: File) {
   probing.value = true
   try {
     media.value = await probe(file)
-    settings.outputKind = media.value.kind
-    setOutput(media.value.kind)
+    workflow.value = null
     step.value = 2
   } catch (reason) { error.value = reason instanceof Error ? reason.message : 'This file could not be opened.' }
   finally { probing.value = false }
 }
-function removeFile() { if (media.value) URL.revokeObjectURL(media.value.url); media.value = null; step.value = 1; error.value = '' }
-function setTool(tool: ToolMode) { settings.tool = tool; settings.presetId = tool === 'compress' ? 'balanced' : settings.outputKind === 'video' ? 'compatible' : 'listen-anywhere' }
-function setOutput(kind: OutputKind) { settings.outputKind = kind; settings.format = kind === 'video' ? 'mp4' : 'mp3'; settings.presetId = kind === 'video' ? 'compatible' : 'listen-anywhere' }
+function removeFile() { if (media.value) URL.revokeObjectURL(media.value.url); media.value = null; workflow.value = null; step.value = 1; error.value = '' }
+function selectPreset(preset: Preset) {
+  settings.presetId = preset.id
+  Object.assign(settings, preset.values)
+}
+function chooseWorkflow(id: Workflow) {
+  const option = availableWorkflows.value.find(item => item.id === id)
+  if (!option) return
+  workflow.value = id
+  settings.tool = option.tool
+  settings.outputKind = option.outputKind
+  if (id === 'audio-video') Object.assign(settings, { videoCodec: 'libx264', quality: 28, frameRate: 1, resolution: 'original' })
+  selectPreset(workflowPresets[id][0])
+}
+function changeFormat() {
+  if (settings.format === 'mp3') settings.audioCodec = 'libmp3lame'
+  else if (settings.format === 'wav') settings.audioCodec = 'pcm_s16le'
+  else if (settings.format === 'ogg') settings.audioCodec = 'libvorbis'
+  else if (settings.format === 'webm') { settings.videoCodec = 'libvpx-vp9'; settings.audioCodec = 'libopus' }
+  else settings.audioCodec = 'aac'
+}
 async function chooseBackdrop(files: FileList | null) {
   const file = files?.[0]
   if (!file) return
@@ -200,15 +231,16 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
       <DropZone v-if="step === 1" :busy="probing" :error="error" @select="chooseFile" />
 
       <section v-else-if="step === 2 && media" class="workspace">
-        <header class="section-heading"><span class="kicker">Your goal</span><h1>What would you like to do?</h1><p>Choose the outcome that matters to you. We’ll handle the technical details.</p></header>
+        <header class="section-heading"><span class="kicker">{{ workflow ? 'Your chosen path' : 'Your goal' }}</span><h1>{{ activeWorkflow?.title || 'What would you like to do?' }}</h1><p>{{ activeWorkflow?.description || 'Pick the result you want. Each path has settings made specifically for that job.' }}</p></header>
         <MediaSummary :media="media" @remove="removeFile" />
-        <div class="tool-switch">
-          <button :class="{ active: settings.tool === 'convert' }" @click="setTool('convert')"><Icon name="fluent:arrow-repeat-all-24-regular" /><span><strong>Convert</strong><small>Change its format or type</small></span></button>
-          <button :class="{ active: settings.tool === 'compress' }" @click="setTool('compress')"><Icon name="fluent:arrow-minimize-24-regular" /><span><strong>Compress</strong><small>Make the file smaller</small></span></button>
+        <div v-if="!workflow" class="intent-grid">
+          <button v-for="option in availableWorkflows" :key="option.id" @click="chooseWorkflow(option.id)"><span class="intent-icon"><Icon :name="option.icon" /></span><span><strong>{{ option.title }}</strong><small>{{ option.description }}</small></span><Icon class="intent-arrow" name="fluent:chevron-right-20-regular" /></button>
         </div>
-        <div v-if="settings.tool === 'convert'" class="output-row"><span>Turn this into</span><div class="segmented"><button :class="{ active: settings.outputKind === 'video' }" @click="setOutput('video')"><Icon name="fluent:video-20-regular" /> Video</button><button :class="{ active: settings.outputKind === 'audio' }" @click="setOutput('audio')"><Icon name="fluent:music-note-2-20-regular" /> Audio only</button></div><select v-model="settings.format" aria-label="Output format"><option v-for="format in formats" :key="format" :value="format">.{{ format.toUpperCase() }}</option></select></div>
-        <div class="subheading"><span>Choose what matters most</span><small>No technical knowledge needed</small></div>
-        <div class="preset-grid"><button v-for="preset in presets" :key="preset.id" class="preset" :class="{ selected: settings.presetId === preset.id }" @click="settings.presetId = preset.id"><span class="preset-icon"><Icon :name="preset.icon" /></span><strong>{{ preset.title }}</strong><small>{{ preset.description }}</small><span class="radio"><Icon v-if="settings.presetId === preset.id" name="fluent:checkmark-12-filled" /></span></button></div>
+        <div v-else class="path-config">
+          <button class="change-path" @click="workflow = null"><Icon name="fluent:arrow-left-20-regular" /> Choose a different task</button>
+          <div class="subheading"><span>How should we handle it?</span><small>Start with the option closest to your goal</small></div>
+          <div class="preset-grid"><button v-for="preset in presets" :key="preset.id" class="preset" :class="{ selected: settings.presetId === preset.id }" @click="selectPreset(preset)"><span class="preset-icon"><Icon :name="preset.icon" /></span><strong>{{ preset.title }}</strong><small>{{ preset.description }}</small><span class="preset-summary"><i v-for="detail in preset.summary" :key="detail">{{ detail }}</i></span><span class="radio"><Icon v-if="settings.presetId === preset.id" name="fluent:checkmark-12-filled" /></span></button></div>
+          <div class="format-row"><span><strong>Output format</strong><small>The file type you’ll receive</small></span><select v-model="settings.format" @change="changeFormat"><option v-for="format in formats" :key="format" :value="format">{{ format.toUpperCase() }}</option></select></div>
 
         <div v-if="isAudioToVideo" class="backdrop-panel">
           <div class="subheading"><span>What should the video show?</span><small>Your audio will play over this background</small></div>
@@ -233,9 +265,20 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
           </div>
         </div>
 
-        <div class="advanced"><button @click="showAdvanced = !showAdvanced"><span><Icon name="fluent:settings-20-regular" /> Advanced settings</span><Icon :name="showAdvanced ? 'fluent:chevron-up-20-regular' : 'fluent:chevron-down-20-regular'" /></button><div v-if="showAdvanced" class="advanced-grid"><label v-if="settings.outputKind === 'video'">Video codec<select v-model="settings.videoCodec"><option value="libx264">H.264</option><option value="libvpx-vp9">VP9</option></select></label><label v-if="settings.outputKind === 'video'">Frame rate<input v-model.number="settings.frameRate" type="number" min="12" max="60"></label><label v-if="settings.outputKind === 'video'">CRF quality<input v-model.number="settings.quality" type="number" min="0" max="51"></label><label>Audio bitrate<select v-model.number="settings.audioBitrate"><option :value="64">64 kbps</option><option :value="128">128 kbps</option><option :value="192">192 kbps</option><option :value="320">320 kbps</option></select></label></div></div>
+        <div class="advanced"><button @click="showAdvanced = !showAdvanced"><span><Icon name="fluent:settings-20-regular" /> Advanced settings <small>See and adjust everything this preset changed</small></span><Icon :name="showAdvanced ? 'fluent:chevron-up-20-regular' : 'fluent:chevron-down-20-regular'" /></button><div v-if="showAdvanced" class="advanced-grid">
+          <label>Output format<select v-model="settings.format" @change="changeFormat"><option v-for="format in formats" :key="format" :value="format">{{ format.toUpperCase() }}</option></select></label>
+          <template v-if="hasVideoEncodingOptions">
+            <label>Video codec<select v-model="settings.videoCodec"><option v-for="codec in videoCodecOptions" :key="codec.value" :value="codec.value">{{ codec.label }}</option></select></label>
+            <label>Video size<select v-model="settings.resolution"><option value="original">Original</option><option value="1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2">Up to 1080p</option><option value="1280:720:force_original_aspect_ratio=decrease:force_divisible_by=2">Up to 720p</option><option value="854:480:force_original_aspect_ratio=decrease:force_divisible_by=2">Up to 480p</option></select></label>
+            <label>Frame rate<select v-model.number="settings.frameRate"><option :value="0">Original</option><option :value="24">24 fps</option><option :value="30">30 fps</option><option :value="60">60 fps</option></select></label>
+            <label>Video quality (CRF)<input v-model.number="settings.quality" type="number" min="0" max="51"><small>Lower means higher quality</small></label>
+          </template>
+          <label>Audio codec<select v-model="settings.audioCodec"><option v-for="codec in audioCodecOptions" :key="codec.value" :value="codec.value">{{ codec.label }}</option></select></label>
+          <label v-if="settings.format !== 'wav'">Audio quality<select v-model.number="settings.audioBitrate"><option :value="64">64 kbps</option><option :value="96">96 kbps</option><option :value="128">128 kbps</option><option :value="192">192 kbps</option><option :value="256">256 kbps</option><option :value="320">320 kbps</option></select></label>
+        </div></div>
         <p v-if="error" class="error"><Icon name="fluent:error-circle-20-regular" /> {{ error }}</p>
-        <footer class="actions"><span><Icon name="fluent:shield-checkmark-20-regular" /> Processed privately on your device</span><button class="primary" :disabled="!canStart" @click="start">Start {{ settings.tool === 'convert' ? 'converting' : 'compressing' }} <Icon name="fluent:arrow-right-20-regular" /></button></footer>
+        <footer class="actions"><span><Icon name="fluent:shield-checkmark-20-regular" /> Processed privately on your device</span><button class="primary" :disabled="!canStart" @click="start">{{ actionLabel }} <Icon name="fluent:arrow-right-20-regular" /></button></footer>
+        </div>
       </section>
 
       <section v-else-if="step === 3 && media" class="processing">
@@ -273,6 +316,26 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
   transition: left .2s linear;
   pointer-events: none;
 }
+.intent-grid { display: grid; gap: 10px; margin-top: 24px; }
+.intent-grid > button { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); text-align: left; cursor: pointer; transition: .2s; }
+.intent-grid > button:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateX(3px); }
+.intent-grid > button > span:nth-child(2) { display: grid; gap: 5px; }
+.intent-grid strong { font-size: 12px; }
+.intent-grid small { color: var(--muted); font-size: 9px; line-height: 1.5; }
+.intent-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--surface-raised); color: var(--accent-strong); font-size: 21px; }
+.intent-arrow { color: var(--muted); }
+.change-path { display: inline-flex; align-items: center; gap: 6px; margin-top: 18px; padding: 7px 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; }
+.change-path:hover { color: var(--text); }
+.path-config .preset { min-height: 190px; }
+.preset-summary { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 12px; }
+.preset-summary i { padding: 4px 6px; border-radius: 5px; background: var(--surface-raised); color: var(--muted); font-size: 7px; font-style: normal; }
+.format-row { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.format-row > span { display: grid; gap: 3px; }
+.format-row strong { font-size: 10px; }
+.format-row small { color: var(--muted); font-size: 8px; }
+.format-row select { min-width: 95px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-solid); color: var(--text); font-size: 9px; }
+.advanced > button small { margin-left: 5px; color: var(--muted); font-size: 8px; font-weight: 400; }
+.advanced-grid label > small { margin-top: -3px; font-size: 7px; }
 .solid-editor { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 18px; align-items: center; margin-top: 16px; }
 .background-preview { width: 100%; max-height: 260px; border-radius: 13px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
 .solid-editor label { display: grid; gap: 10px; color: var(--muted); font-size: 9px; }
@@ -300,5 +363,5 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 .custom-resolution { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
 .custom-resolution input { width: 65px; padding: 7px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-solid); color: var(--text); font-size: 8px; }
 .output-pickers > small { justify-self: end; color: var(--muted); font-size: 8px; }
-@media (max-width: 600px) { .solid-editor { grid-template-columns: 1fr; } .output-pickers > div { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .solid-editor { grid-template-columns: 1fr; } .output-pickers > div { grid-template-columns: 1fr; } .path-config .preset { min-height: 150px; } .advanced > button small { display: none; } }
 </style>

@@ -3,7 +3,6 @@ import { fetchFile } from '@ffmpeg/util'
 import coreURL from '@ffmpeg/core?url'
 import wasmURL from '@ffmpeg/core/wasm?url'
 import type { MediaFileInfo, ProcessResult, ProcessSettings } from '~/types/media'
-import { compressPresets, convertPresets } from '~/utils/presets'
 
 let engine: FFmpeg | null = null
 let loadPromise: Promise<boolean> | null = null
@@ -74,22 +73,19 @@ export function useFfmpeg() {
       args.push('-vf', cropFilter, '-shortest')
     }
 
-    const preset = settings.tool === 'compress'
-      ? compressPresets.find(item => item.id === settings.presetId)
-      : convertPresets[settings.outputKind].find(item => item.id === settings.presetId)
-
     if (settings.outputKind === 'audio') {
       args.push('-vn')
       if (settings.format === 'mp3') args.push('-c:a', 'libmp3lame')
       else if (settings.format === 'wav') args.push('-c:a', 'pcm_s16le')
       else if (settings.format === 'ogg') args.push('-c:a', 'libvorbis')
       else args.push('-c:a', settings.audioCodec)
-      if (settings.format !== 'wav') args.push('-b:a', `${preset?.audioBitrate || settings.audioBitrate}k`)
+      if (settings.format !== 'wav') args.push('-b:a', `${settings.audioBitrate}k`)
     } else {
       args.push('-c:v', settings.format === 'webm' ? 'libvpx-vp9' : settings.videoCodec)
-      args.push('-crf', String(preset?.quality ?? settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
-      if (preset?.resolution && media.kind === 'video') args.push('-vf', `scale=${preset.resolution}`)
-      args.push('-c:a', settings.format === 'webm' ? 'libopus' : settings.audioCodec, '-b:a', `${preset?.audioBitrate || settings.audioBitrate}k`)
+      args.push('-crf', String(settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
+      if (settings.frameRate > 0) args.push('-r', String(settings.frameRate))
+      if (settings.resolution !== 'original' && media.kind === 'video') args.push('-vf', `scale=${settings.resolution}`)
+      args.push('-c:a', settings.format === 'webm' ? 'libopus' : settings.audioCodec, '-b:a', `${settings.audioBitrate}k`)
       if (settings.format === 'mp4') args.push('-movflags', '+faststart')
     }
 

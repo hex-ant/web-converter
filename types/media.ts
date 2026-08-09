@@ -2,6 +2,7 @@ export type MediaKind = 'video' | 'audio'
 export type ToolMode = 'convert' | 'compress'
 export type OutputKind = 'video' | 'audio'
 export type BackdropMode = 'color' | 'image'
+export type Workflow = 'video-compress' | 'video-convert' | 'video-audio' | 'audio-compress' | 'audio-convert' | 'audio-video'
 
 export interface MediaFileInfo {
   file: File
