@@ -83,8 +83,12 @@ export function useFfmpeg() {
     } else {
       args.push('-c:v', settings.format === 'webm' ? 'libvpx-vp9' : settings.videoCodec)
       args.push('-crf', String(settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
-      if (settings.frameRate > 0) args.push('-r', String(settings.frameRate))
-      if (settings.resolution !== 'original' && media.kind === 'video') args.push('-vf', `scale=${settings.resolution}`)
+      if (media.kind === 'video') {
+        const filters: string[] = []
+        if (settings.resolution !== 'original') filters.push(`scale=${settings.resolution}`)
+        if (settings.frameRate > 0) filters.push(`fps=fps='min(source_fps,${settings.frameRate})'`)
+        if (filters.length) args.push('-vf', filters.join(','))
+      }
       args.push('-c:a', settings.format === 'webm' ? 'libopus' : settings.audioCodec, '-b:a', `${settings.audioBitrate}k`)
       if (settings.format === 'mp4') args.push('-movflags', '+faststart')
     }

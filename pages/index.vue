@@ -270,7 +270,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
           <template v-if="hasVideoEncodingOptions">
             <label>Video codec<select v-model="settings.videoCodec"><option v-for="codec in videoCodecOptions" :key="codec.value" :value="codec.value">{{ codec.label }}</option></select></label>
             <label>Video size<select v-model="settings.resolution"><option value="original">Original</option><option value="1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2">Up to 1080p</option><option value="1280:720:force_original_aspect_ratio=decrease:force_divisible_by=2">Up to 720p</option><option value="854:480:force_original_aspect_ratio=decrease:force_divisible_by=2">Up to 480p</option></select></label>
-            <label>Frame rate<select v-model.number="settings.frameRate"><option :value="0">Original</option><option :value="24">24 fps</option><option :value="30">30 fps</option><option :value="60">60 fps</option></select></label>
+            <label>Maximum frame rate<select v-model.number="settings.frameRate"><option :value="0">Original</option><option :value="24">Up to 24 fps</option><option :value="30">Up to 30 fps</option><option :value="60">Up to 60 fps</option></select></label>
             <label>Video quality (CRF)<input v-model.number="settings.quality" type="number" min="0" max="51"><small>Lower means higher quality</small></label>
           </template>
           <label>Audio codec<select v-model="settings.audioCodec"><option v-for="codec in audioCodecOptions" :key="codec.value" :value="codec.value">{{ codec.label }}</option></select></label>
