@@ -36,7 +36,7 @@ h1 em {
   font-family: 'Bodoni Moda', Georgia, serif;
   font-style: italic;
   font-weight: 500;
-  letter-spacing: normal;
+  letter-spacing: -0.05em;
   font-variant-ligatures: common-ligatures;
   font-feature-settings: 'liga' 1;
 }
