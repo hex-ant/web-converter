@@ -26,7 +26,7 @@ export default defineNuxtConfig({
         {
           src: '/moments.js',
           defer: true,
-          'data-website-id': 'd95480b0-c557-4c87-874d-3baf0bfbc89b',
+          'data-website-id': '39cf488a-bd25-42cb-9c44-b9ec3dc91bc9',
           'data-host-url': '/moments',
           'data-tag': 'env-production'
         }
