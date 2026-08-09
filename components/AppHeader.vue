@@ -25,7 +25,7 @@ const toggleTheme = () => { colorMode.preference = isDark.value ? 'light' : 'dar
 .brand-name { display: flex; align-items: baseline; gap: 3px; }
 .brand-name strong { color: var(--muted); font-weight: 400; }
 .brand-name > span { color: inherit; font-weight: 600; }
-.brand-name small { margin-left: -1px; color: var(--muted); font-size: 11px; font-weight: 400; opacity: .62; }
+.brand-name small { margin-left: -1px; color: var(--muted); font-size: 13px; font-weight: 400; opacity: .62; }
 .privacy { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .theme-button { justify-self: end; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); background: var(--surface); border-radius: 50%; cursor: pointer; font-size: 20px; transition: .2s; }
 .theme-button:hover { border-color: var(--accent); transform: rotate(8deg); }
