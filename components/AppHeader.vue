@@ -23,8 +23,8 @@ const toggleTheme = () => { colorMode.preference = isDark.value ? 'light' : 'dar
 .brand { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: transparent; color: inherit; font-size: 19px; font-weight: 600; letter-spacing: -.5px; cursor: pointer; }
 .brand-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 10px; color: #241600; background: var(--accent); font-size: 19px; transform: rotate(-4deg); }
 .brand-name { display: flex; align-items: baseline; gap: 3px; }
-.brand-name strong { font-weight: 600; }
-.brand-name > span { color: var(--muted); font-weight: 400; }
+.brand-name strong { color: var(--muted); font-weight: 400; }
+.brand-name > span { color: inherit; font-weight: 600; }
 .privacy { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .theme-button { justify-self: end; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); background: var(--surface); border-radius: 50%; cursor: pointer; font-size: 20px; transition: .2s; }
 .theme-button:hover { border-color: var(--accent); transform: rotate(8deg); }
