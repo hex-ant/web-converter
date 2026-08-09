@@ -30,6 +30,15 @@ export default defineNuxtConfig({
         { property: 'og:description', content: 'Convert and compress video or audio privately in your browser. Your files never leave your device.' },
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: 'https://withconverter.com/' },
+        { property: 'og:image', content: 'https://withconverter.com/og-image.png' },
+        { property: 'og:image:width', content: '1200' },
+        { property: 'og:image:height', content: '630' },
+        { property: 'og:image:type', content: 'image/png' },
+        { property: 'og:image:alt', content: 'WithConverter private video and audio converter upload screen' },
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:title', content: 'WithConverter — Private Video & Audio Converter' },
+        { name: 'twitter:description', content: 'Convert and compress video or audio privately in your browser. Your files never leave your device.' },
+        { name: 'twitter:image', content: 'https://withconverter.com/og-image.png' },
         { name: 'theme-color', content: '#f59e0b' }
       ],
       link: [{ rel: 'canonical', href: 'https://withconverter.com/' }]
