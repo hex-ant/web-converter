@@ -22,6 +22,15 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'WithConverter — Private Video & Audio Converter',
+      script: [
+        {
+          src: '/moments.js',
+          defer: true,
+          'data-website-id': 'd95480b0-c557-4c87-874d-3baf0bfbc89b',
+          'data-host-url': '/moments',
+          'data-tag': 'env-production'
+        }
+      ],
       meta: [
         { name: 'application-name', content: 'withconverter.com' },
         { name: 'description', content: 'Convert and compress video or audio privately in your browser. Your files never leave your device.' },
