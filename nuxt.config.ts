@@ -21,11 +21,18 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'withconvert — Local media converter',
+      title: 'withconverter.com — Private Video & Audio Converter',
       meta: [
-        { name: 'description', content: 'Convert and compress video or audio privately in your browser.' },
+        { name: 'application-name', content: 'withconverter.com' },
+        { name: 'description', content: 'Convert and compress video or audio privately in your browser. Your files never leave your device.' },
+        { property: 'og:site_name', content: 'withconverter.com' },
+        { property: 'og:title', content: 'withconverter.com — Private Video & Audio Converter' },
+        { property: 'og:description', content: 'Convert and compress video or audio privately in your browser. Your files never leave your device.' },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: 'https://withconverter.com/' },
         { name: 'theme-color', content: '#f59e0b' }
-      ]
+      ],
+      link: [{ rel: 'canonical', href: 'https://withconverter.com/' }]
     }
   },
   nitro: {
