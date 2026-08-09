@@ -22,13 +22,13 @@ export interface WorkflowOption {
 
 export const workflowsFor: Record<MediaKind, WorkflowOption[]> = {
   video: [
-    { id: 'video-compress', title: 'Make the video smaller', description: 'Keep it as a video, but reduce the file size.', icon: 'fluent:arrow-minimize-24-regular', tool: 'compress', outputKind: 'video' },
-    { id: 'video-convert', title: 'Change the video format', description: 'Create another video that works where you need it.', icon: 'fluent:video-switch-24-regular', tool: 'convert', outputKind: 'video' },
+    { id: 'video-compress', title: 'Compress the video', description: 'Reduce its file size while keeping it as a video. You decide how much quality or resolution to preserve.', icon: 'fluent:arrow-minimize-24-regular', tool: 'compress', outputKind: 'video' },
+    { id: 'video-convert', title: 'Convert the video', description: 'Change the video format for another app or device, with the option to preserve the original quality.', icon: 'fluent:video-switch-24-regular', tool: 'convert', outputKind: 'video' },
     { id: 'video-audio', title: 'Extract the audio', description: 'Keep only the sound from this video.', icon: 'fluent:music-note-2-24-regular', tool: 'convert', outputKind: 'audio' }
   ],
   audio: [
-    { id: 'audio-compress', title: 'Make the audio smaller', description: 'Reduce its size while keeping it as audio.', icon: 'fluent:arrow-minimize-24-regular', tool: 'compress', outputKind: 'audio' },
-    { id: 'audio-convert', title: 'Change the audio format', description: 'Create an audio file for another app or device.', icon: 'fluent:arrow-repeat-all-24-regular', tool: 'convert', outputKind: 'audio' },
+    { id: 'audio-compress', title: 'Compress the audio', description: 'Reduce its file size while keeping it as audio. You decide how much sound quality to preserve.', icon: 'fluent:arrow-minimize-24-regular', tool: 'compress', outputKind: 'audio' },
+    { id: 'audio-convert', title: 'Convert the audio', description: 'Change the audio format for another app or device, with the option to preserve the original quality.', icon: 'fluent:arrow-repeat-all-24-regular', tool: 'convert', outputKind: 'audio' },
     { id: 'audio-video', title: 'Create a video from audio', description: 'Add a color or cover image and make a shareable video.', icon: 'fluent:video-add-24-regular', tool: 'convert', outputKind: 'video' }
   ]
 }

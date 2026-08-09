@@ -34,8 +34,8 @@ const formats = computed(() => media.value ? formatsFor(media.value.kind, settin
 const isAudioToVideo = computed(() => workflow.value === 'audio-video')
 const hasVideoEncodingOptions = computed(() => workflow.value === 'video-compress' || workflow.value === 'video-convert')
 const actionLabel = computed(() => ({
-  'video-compress': 'Make video smaller', 'video-convert': 'Convert video', 'video-audio': 'Extract audio',
-  'audio-compress': 'Make audio smaller', 'audio-convert': 'Convert audio', 'audio-video': 'Create video'
+  'video-compress': 'Compress video', 'video-convert': 'Convert video', 'video-audio': 'Extract audio',
+  'audio-compress': 'Compress audio', 'audio-convert': 'Convert audio', 'audio-video': 'Create video'
 }[workflow.value || 'video-convert']))
 const videoCodecOptions = computed(() => settings.format === 'webm' ? [{ value: 'libvpx-vp9', label: 'VP9' }] : [{ value: 'libx264', label: 'H.264' }])
 const audioCodecOptions = computed(() => ({
