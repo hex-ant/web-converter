@@ -7,9 +7,9 @@ const toggleTheme = () => { colorMode.preference = isDark.value ? 'light' : 'dar
 
 <template>
   <header class="header">
-    <button class="brand" type="button" aria-label="withconvert — go to start" @click="$emit('home')">
+    <button class="brand" type="button" aria-label="withconverter.com — go to start" @click="$emit('home')">
       <span class="brand-mark"><Icon name="fluent:shapes-24-filled" /></span>
-      <span class="brand-name"><strong>with</strong><span>convert</span></span>
+      <span class="brand-name"><strong>with</strong><span>converter</span><small>.com</small></span>
     </button>
     <div class="privacy"><Icon name="fluent:lock-closed-20-regular" /> Your files never leave this device</div>
     <button class="theme-button" type="button" :aria-label="`Use ${isDark ? 'light' : 'dark'} mode`" @click="toggleTheme">
@@ -25,6 +25,7 @@ const toggleTheme = () => { colorMode.preference = isDark.value ? 'light' : 'dar
 .brand-name { display: flex; align-items: baseline; gap: 3px; }
 .brand-name strong { color: var(--muted); font-weight: 400; }
 .brand-name > span { color: inherit; font-weight: 600; }
+.brand-name small { margin-left: -1px; color: var(--muted); font-size: 11px; font-weight: 400; opacity: .62; }
 .privacy { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .theme-button { justify-self: end; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); background: var(--surface); border-radius: 50%; cursor: pointer; font-size: 20px; transition: .2s; }
 .theme-button:hover { border-color: var(--accent); transform: rotate(8deg); }
