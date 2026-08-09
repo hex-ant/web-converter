@@ -3,7 +3,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   ssr: false,
   modules: ['@nuxt/icon', '@nuxtjs/color-mode'],
-  css: ['@fontsource/sora/400.css', '@fontsource/sora/500.css', '@fontsource/sora/600.css', '~/assets/css/main.css'],
+  css: [
+    '@fontsource/sora/400.css',
+    '@fontsource/sora/500.css',
+    '@fontsource/sora/600.css',
+    '@fontsource/bodoni-moda/500-italic.css',
+    '~/assets/css/main.css'
+  ],
   colorMode: {
     preference: 'system',
     fallback: 'light',

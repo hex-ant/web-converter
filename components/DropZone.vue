@@ -31,7 +31,15 @@ const accept = (files: FileList | null) => {
 .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--accent-strong); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
 .eyebrow span { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 5px var(--accent-soft); }
 h1 { margin: 20px 0 15px; font-size: clamp(42px, 7vw, 76px); line-height: .98; letter-spacing: -.06em; font-weight: 500; }
-h1 em { color: var(--accent); font-family: Georgia, serif; font-weight: 400; }
+h1 em {
+  color: var(--accent);
+  font-family: 'Bodoni Moda', Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: normal;
+  font-variant-ligatures: common-ligatures;
+  font-feature-settings: 'liga' 1;
+}
 .intro > p { color: var(--muted); margin: 0 auto 34px; font-size: 15px; }
 .drop { position: relative; display: flex; flex-direction: column; align-items: center; width: min(610px, 100%); min-height: 260px; margin: auto; padding: 42px 24px 28px; border: 1px dashed var(--line); border-radius: 24px; color: var(--text); background: var(--surface); box-shadow: var(--shadow); cursor: pointer; transition: .25s; overflow: hidden; }
 .drop::before { content: ''; position: absolute; width: 180px; height: 180px; border-radius: 50%; background: var(--accent); opacity: .08; filter: blur(30px); top: -95px; }
