@@ -17,6 +17,7 @@
     "@fontsource/sora": "^5.2.6",
     "@iconify-json/fluent": "^1.2.29",
     "@nuxt/icon": "^1.15.0",
+    "mediabunny": "^1.53.0",
     "nuxt": "^3.17.5",
     "vue": "^3.5.17"
   },

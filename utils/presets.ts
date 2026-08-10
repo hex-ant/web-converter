@@ -29,7 +29,7 @@ export const workflowsFor: Record<MediaKind, WorkflowOption[]> = {
   audio: [
     { id: 'audio-compress', title: 'Compress the audio', description: 'Reduce its file size while keeping it as audio. You decide how much sound quality to preserve.', icon: 'fluent:arrow-minimize-24-regular', tool: 'compress', outputKind: 'audio' },
     { id: 'audio-convert', title: 'Convert the audio', description: 'Change the audio format for another app or device, with the option to preserve the original quality.', icon: 'fluent:arrow-repeat-all-24-regular', tool: 'convert', outputKind: 'audio' },
-    { id: 'audio-video', title: 'Create a video from audio', description: 'Add a color or cover image and make a shareable video.', icon: 'fluent:video-add-24-regular', tool: 'convert', outputKind: 'video' }
+    { id: 'audio-video', title: 'Create a video from audio', description: 'Add an animated audio wave, a color or a cover image to make a shareable video.', icon: 'fluent:video-add-24-regular', tool: 'convert', outputKind: 'video' }
   ]
 }
 
@@ -71,11 +71,10 @@ export const aspectRatios = [
   { id: '16:9', label: '16:9', ratio: 16 / 9 },
   { id: '9:16', label: '9:16', ratio: 9 / 16 },
   { id: '4:3', label: '4:3', ratio: 4 / 3 },
-  { id: '3:4', label: '3:4', ratio: 3 / 4 },
-  { id: 'original', label: 'Original', ratio: 0 }
+  { id: '3:4', label: '3:4', ratio: 3 / 4 }
 ] as const
 
-export const outputResolutions = [320, 480, 720, 1080, 0] as const
+export const outputResolutions = [320, 480, 720, 1080] as const
 
 export const formatsFor = (source: MediaKind, target: OutputKind) => {
   if (target === 'audio') return ['mp3', 'm4a', 'wav', 'ogg']

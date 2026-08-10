@@ -15,6 +15,7 @@ const showAdvanced = ref(false)
 const processingVideo = ref<HTMLVideoElement | null>(null)
 const pixelatedFrame = ref<HTMLCanvasElement | null>(null)
 const cropper = ref<HTMLElement | null>(null)
+const imageDragging = ref(false)
 const imageWidth = ref(0)
 const imageHeight = ref(0)
 const aspectChoice = ref('16:9')
@@ -42,7 +43,7 @@ const audioCodecOptions = computed(() => ({
   mp3: [{ value: 'libmp3lame', label: 'MP3' }], wav: [{ value: 'pcm_s16le', label: 'PCM (lossless)' }],
   ogg: [{ value: 'libvorbis', label: 'Vorbis' }], webm: [{ value: 'libopus', label: 'Opus' }]
 }[settings.format] || [{ value: 'aac', label: 'AAC' }]))
-const canStart = computed(() => !isAudioToVideo.value || settings.backdropMode === 'color' || !!settings.backdropImage)
+const canStart = computed(() => !isAudioToVideo.value || settings.backdropMode !== 'image' || !!settings.backdropImage)
 const imageRatio = computed(() => imageWidth.value && imageHeight.value ? imageWidth.value / imageHeight.value : 16 / 9)
 const selectedRatio = computed(() => aspectRatios.find(item => item.id === aspectChoice.value)?.ratio || imageRatio.value)
 
@@ -97,12 +98,6 @@ function updateOutputDimensions() {
   if (resolutionChoice.value === -1) {
     settings.outputWidth = customWidth.value
     settings.outputHeight = customHeight.value
-  } else if (resolutionChoice.value === 0) {
-    if (imageWidth.value && imageHeight.value) {
-      settings.outputWidth = Math.max(2, Math.round(imageWidth.value * cropRect.width / 100 / 2) * 2)
-      settings.outputHeight = Math.max(2, Math.round(imageHeight.value * cropRect.height / 100 / 2) * 2)
-    } else if (ratio >= 1) { settings.outputHeight = 1080; settings.outputWidth = Math.round(1080 * ratio / 2) * 2 }
-    else { settings.outputWidth = 1080; settings.outputHeight = Math.round(1080 / ratio / 2) * 2 }
   } else if (ratio >= 1) {
     settings.outputHeight = resolutionChoice.value
     settings.outputWidth = Math.round(resolutionChoice.value * ratio / 2) * 2
@@ -112,7 +107,6 @@ function updateOutputDimensions() {
   }
 }
 function resetCrop() {
-  if (aspectChoice.value === "original") { cropRect.x = 0; cropRect.y = 0; cropRect.width = 100; cropRect.height = 100; return }
   const heightPerWidth = imageRatio.value / selectedRatio.value
   let width = 86
   let height = width * heightPerWidth
@@ -243,24 +237,28 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
           <div class="format-row"><span><strong>Output format</strong><small>The file type you’ll receive</small></span><select v-model="settings.format" @change="changeFormat"><option v-for="format in formats" :key="format" :value="format">{{ format.toUpperCase() }}</option></select></div>
 
         <div v-if="isAudioToVideo" class="backdrop-panel">
-          <div class="subheading"><span>What should the video show?</span><small>Your audio will play over this background</small></div>
-          <div class="backdrop-tabs"><button :class="{ active: settings.backdropMode === 'color' }" @click="settings.backdropMode = 'color'"><Icon name="fluent:color-20-regular" /> Solid color</button><button :class="{ active: settings.backdropMode === 'image' }" @click="settings.backdropMode = 'image'"><Icon name="fluent:image-20-regular" /> Your image</button></div>
+          <div class="subheading"><span>What should the video show?</span><small>Choose an animated wave, a solid color or your own image</small></div>
+          <div class="backdrop-tabs"><button :class="{ active: settings.backdropMode === 'color' }" @click="settings.backdropMode = 'color'"><Icon name="fluent:color-20-regular" /> Solid color</button><button :class="{ active: settings.backdropMode === 'image' }" @click="settings.backdropMode = 'image'"><Icon name="fluent:image-20-regular" /> Your image</button><button :class="{ active: settings.backdropMode === 'waveform' }" @click="settings.backdropMode = 'waveform'"><Icon name="fluent:pulse-20-regular" /> Audio wave</button></div>
           <div v-if="settings.backdropMode === 'color'" class="solid-editor">
-            <div class="background-preview" :style="{ aspectRatio: selectedRatio, background: settings.backdropColor }" />
+            <div class="background-preview generated-preview" :style="{ aspectRatio: selectedRatio, '--preview-ratio': selectedRatio, background: settings.backdropColor }" />
             <label>Background color <span><input v-model="settings.backdropColor" type="color"><code>{{ settings.backdropColor.toUpperCase() }}</code></span></label>
           </div>
-          <div v-else class="image-choice">
-            <label v-if="!settings.backdropImageUrl" class="image-upload"><Icon name="fluent:image-add-24-regular" /><strong>Choose a cover image</strong><span>JPG, PNG or WebP</span><input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
-            <div v-else ref="cropper" class="direct-cropper" :style="{ aspectRatio: imageRatio, maxWidth: Math.min(560, 360 * imageRatio) + 'px' }">
+          <div v-else-if="settings.backdropMode === 'image'" class="image-choice">
+            <label v-if="!settings.backdropImageUrl" class="image-upload" :class="{ dragging: imageDragging }" @dragover.prevent="imageDragging = true" @dragleave.prevent="imageDragging = false" @drop.prevent="imageDragging = false; chooseBackdrop($event.dataTransfer?.files || null)"><Icon name="fluent:image-add-24-regular" /><strong>Drop a cover image here</strong><span>or choose a JPG, PNG or WebP</span><input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
+            <div v-else ref="cropper" class="direct-cropper" :style="{ aspectRatio: imageRatio, '--image-ratio': imageRatio }">
               <img :src="settings.backdropImageUrl" alt="Cover crop preview">
               <div class="crop-selection" :style="{ left: cropRect.x + '%', top: cropRect.y + '%', width: cropRect.width + '%', height: cropRect.height + '%' }" @pointerdown="beginCrop($event, 'move')" @pointermove="moveCrop" @pointerup="endCrop" @pointercancel="endCrop"><span v-for="corner in ['nw', 'ne', 'sw', 'se'] as const" :key="corner" class="resize-handle" :class="corner" @pointerdown.stop="beginCrop($event, corner)" /></div>
               <label class="replace">Replace<input class="sr-only" type="file" accept="image/*" @change="chooseBackdrop(($event.target as HTMLInputElement).files)"></label>
             </div>
-            <p v-if="settings.backdropImageUrl" class="crop-hint">Drag the frame to position it. Drag the corner to resize.</p>
+            <p class="crop-hint" :class="{ placeholder: !settings.backdropImageUrl }">Drag the frame to position it. Drag the corner to resize.</p>
+          </div>
+          <div v-else class="waveform-editor">
+            <div class="waveform-preview generated-preview" :style="{ aspectRatio: selectedRatio, '--preview-ratio': selectedRatio, background: settings.backdropColor }"><i v-for="(height, index) in [4, 7, 12, 8, 18, 24, 14, 29, 20, 11, 26, 34, 22, 13, 31, 19, 9, 21, 38, 17, 7, 15, 28, 12, 20, 42, 27, 16, 35, 23, 11, 18, 46, 30, 14, 25, 39, 21, 10, 16, 32, 19]" :key="index" :style="{ height: height + '%' }" /></div>
+            <div><strong>Moves with your audio</strong><span>The exported wave will be generated from the actual sound.</span></div>
           </div>
           <div class="output-pickers">
             <div><span>Aspect ratio</span><div class="choice-row"><button v-for="aspect in aspectRatios" :key="aspect.id" :class="{ active: aspectChoice === aspect.id }" @click="selectAspect(aspect.id)">{{ aspect.label }}</button></div></div>
-            <div><span>Resolution</span><div class="choice-row"><button v-for="resolution in outputResolutions" :key="resolution" :class="{ active: resolutionChoice === resolution }" @click="selectResolution(resolution)">{{ resolution ? resolution + 'p' : 'Original' }}</button><button :class="{ active: resolutionChoice === -1 }" @click="enableCustomResolution">Custom</button><label v-if="resolutionChoice === -1" class="custom-resolution"><input v-model.number="customWidth" type="number" min="2" max="7680" @change="setCustomDimension('width', customWidth)"><span>×</span><input v-model.number="customHeight" type="number" min="2" max="7680" @change="setCustomDimension('height', customHeight)"></label></div></div>
+            <div><span>Resolution</span><div class="choice-row"><button v-for="resolution in outputResolutions" :key="resolution" :class="{ active: resolutionChoice === resolution }" @click="selectResolution(resolution)">{{ resolution }}p</button><button :class="{ active: resolutionChoice === -1 }" @click="enableCustomResolution">Custom</button><label v-if="resolutionChoice === -1" class="custom-resolution"><input v-model.number="customWidth" type="number" min="2" max="7680" @change="setCustomDimension('width', customWidth)"><span>×</span><input v-model.number="customHeight" type="number" min="2" max="7680" @change="setCustomDimension('height', customHeight)"></label></div></div>
             <small>Output: {{ settings.outputWidth }} × {{ settings.outputHeight }}</small>
           </div>
         </div>
@@ -334,15 +332,25 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 .format-row strong { font-size: 10px; }
 .format-row small { color: var(--muted); font-size: 8px; }
 .format-row select { min-width: 95px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-solid); color: var(--text); font-size: 9px; }
+.backdrop-panel > .subheading { margin-top: 0; }
 .advanced > button small { margin-left: 5px; color: var(--muted); font-size: 8px; font-weight: 400; }
 .advanced-grid label > small { margin-top: -3px; font-size: 7px; }
-.solid-editor { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 18px; align-items: center; margin-top: 16px; }
-.background-preview { width: 100%; max-height: 260px; border-radius: 13px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.solid-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: center; margin-top: 16px; }
+.generated-preview { width: min(100%, calc(260px * var(--preview-ratio))); max-height: 260px; margin-inline: auto; }
+.background-preview { border-radius: 13px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
 .solid-editor label { display: grid; gap: 10px; color: var(--muted); font-size: 9px; }
 .solid-editor label span { display: flex; align-items: center; gap: 9px; }
 .solid-editor input { width: 36px; height: 36px; padding: 0; border: 0; background: transparent; }
 .solid-editor code { color: var(--text); }
-.direct-cropper { position: relative; width: 100%; margin: 16px auto 0; overflow: hidden; border-radius: 13px; background: #111; touch-action: none; user-select: none; }
+.waveform-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: center; margin-top: 16px; }
+.waveform-preview { display: flex; align-items: center; justify-content: center; gap: .6%; padding: 0; overflow: hidden; border-radius: 13px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.waveform-preview i { flex: 1; min-width: 0; min-height: 1.2%; border-radius: 99px; background: linear-gradient(180deg, var(--accent-strong), var(--accent)); }
+.waveform-editor > div:last-child { display: grid; gap: 7px; }
+.waveform-editor strong { font-size: 10px; }
+.waveform-editor span { color: var(--muted); font-size: 8px; line-height: 1.55; }
+.image-upload { width: 100%; height: 260px; margin-top: 16px; transition: border-color .2s, background-color .2s; }
+.image-upload.dragging { border-color: var(--accent); background: var(--accent-soft); }
+.direct-cropper { position: relative; width: min(100%, calc(260px * var(--image-ratio))); max-height: 260px; margin: 16px auto 0; overflow: hidden; border-radius: 13px; background: #111; touch-action: none; user-select: none; }
 .direct-cropper .replace { z-index: 3; }
 .direct-cropper > img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .direct-cropper::after { content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.34); pointer-events: none; }
@@ -354,6 +362,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 .resize-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
 .resize-handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .crop-hint { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 8px; }
+.crop-hint.placeholder { visibility: hidden; }
 .output-pickers { display: grid; gap: 14px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
 .output-pickers > div { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 10px; }
 .output-pickers > div > span { color: var(--muted); font-size: 9px; }
@@ -363,5 +372,5 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 .custom-resolution { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
 .custom-resolution input { width: 65px; padding: 7px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-solid); color: var(--text); font-size: 8px; }
 .output-pickers > small { justify-self: end; color: var(--muted); font-size: 8px; }
-@media (max-width: 600px) { .solid-editor { grid-template-columns: 1fr; } .output-pickers > div { grid-template-columns: 1fr; } .path-config .preset { min-height: 150px; } .advanced > button small { display: none; } }
+@media (max-width: 600px) { .solid-editor, .waveform-editor { grid-template-columns: 1fr; } .output-pickers > div { grid-template-columns: 1fr; } .path-config .preset { min-height: 150px; } .advanced > button small { display: none; } }
 </style>

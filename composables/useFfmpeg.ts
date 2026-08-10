@@ -3,6 +3,7 @@ import { fetchFile } from '@ffmpeg/util'
 import coreURL from '@ffmpeg/core?url'
 import wasmURL from '@ffmpeg/core/wasm?url'
 import type { MediaFileInfo, ProcessResult, ProcessSettings } from '~/types/media'
+import { createWaveformVideo } from '~/utils/waveformVideo'
 
 let engine: FFmpeg | null = null
 let loadPromise: Promise<boolean> | null = null
@@ -16,12 +17,15 @@ export function useFfmpeg() {
   const status = ref('Preparing the workspace…')
   const logs = ref<string[]>([])
   let activeDuration = 0
+  let ffmpegProgressStart = 0
+  let activeController: AbortController | null = null
 
   const load = async () => {
     if (!engine) {
       engine = new FFmpeg()
       engine.on('progress', ({ progress: value, time }) => {
-        progress.value = Math.max(0, Math.min(1, value))
+        const engineProgress = Math.max(0, Math.min(1, value))
+        progress.value = ffmpegProgressStart + engineProgress * (1 - ffmpegProgressStart)
         // FFmpeg reports its processed media timestamp in microseconds.
         processedTime.value = time > 0 ? time / 1_000_000 : activeDuration * progress.value
       })
@@ -47,8 +51,10 @@ export function useFfmpeg() {
   const process = async (media: MediaFileInfo, settings: ProcessSettings): Promise<ProcessResult> => {
     progress.value = 0
     processedTime.value = 0
+    ffmpegProgressStart = 0
     activeDuration = media.duration
     logs.value = []
+    activeController = new AbortController()
     await load()
     if (!engine) throw new Error('The media engine did not start.')
 
@@ -56,9 +62,25 @@ export function useFfmpeg() {
     const outputName = `output.${settings.format}`
     await engine.writeFile(inputName, await fetchFile(media.file))
     const args: string[] = ['-i', inputName]
+    let waveformName = ''
 
     if (media.kind === 'audio' && settings.outputKind === 'video') {
-      if (settings.backdropMode === 'image' && settings.backdropImage) {
+      if (settings.backdropMode === 'waveform') {
+        status.value = 'Drawing your audio wave…'
+        const waveform = await createWaveformVideo(media.file, {
+          width: settings.outputWidth,
+          height: settings.outputHeight,
+          format: settings.format === 'webm' ? 'webm' : 'mp4',
+          backgroundColor: settings.backdropColor,
+          signal: activeController.signal,
+          onProgress: value => { progress.value = value * 0.72 }
+        })
+        waveformName = `waveform.${settings.format === 'webm' ? 'webm' : 'mp4'}`
+        await engine.writeFile(waveformName, await fetchFile(waveform))
+        args.splice(0, args.length, '-i', waveformName, '-i', inputName)
+        args.push('-map', '0:v', '-map', '1:a', '-shortest')
+        ffmpegProgressStart = 0.72
+      } else if (settings.backdropMode === 'image' && settings.backdropImage) {
         const imageName = `cover.${extension(settings.backdropImage.name)}`
         await engine.writeFile(imageName, await fetchFile(settings.backdropImage))
         args.splice(0, args.length, '-loop', '1', '-i', imageName, '-i', inputName)
@@ -67,10 +89,12 @@ export function useFfmpeg() {
         args.splice(0, args.length, '-f', 'lavfi', '-i', `color=c=${settings.backdropColor.replace('#', '0x')}:s=${settings.outputWidth}x${settings.outputHeight}:r=${settings.frameRate}`, '-i', inputName)
         args.push('-map', '0:v', '-map', '1:a')
       }
-      const cropFilter = settings.backdropMode === 'image'
-        ? `crop=iw*${settings.cropWidth / 100}:ih*${settings.cropHeight / 100}:iw*${settings.cropX / 100}:ih*${settings.cropY / 100},scale=${settings.outputWidth}:${settings.outputHeight}`
-        : `scale=${settings.outputWidth}:${settings.outputHeight}`
-      args.push('-vf', cropFilter, '-shortest')
+      if (settings.backdropMode !== 'waveform') {
+        const cropFilter = settings.backdropMode === 'image'
+          ? `crop=iw*${settings.cropWidth / 100}:ih*${settings.cropHeight / 100}:iw*${settings.cropX / 100}:ih*${settings.cropY / 100},scale=${settings.outputWidth}:${settings.outputHeight}`
+          : `scale=${settings.outputWidth}:${settings.outputHeight}`
+        args.push('-vf', cropFilter, '-shortest')
+      }
     }
 
     if (settings.outputKind === 'audio') {
@@ -81,8 +105,11 @@ export function useFfmpeg() {
       else args.push('-c:a', settings.audioCodec)
       if (settings.format !== 'wav') args.push('-b:a', `${settings.audioBitrate}k`)
     } else {
-      args.push('-c:v', settings.format === 'webm' ? 'libvpx-vp9' : settings.videoCodec)
-      args.push('-crf', String(settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
+      if (settings.backdropMode === 'waveform' && media.kind === 'audio') args.push('-c:v', 'copy')
+      else {
+        args.push('-c:v', settings.format === 'webm' ? 'libvpx-vp9' : settings.videoCodec)
+        args.push('-crf', String(settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
+      }
       if (media.kind === 'video') {
         const filters: string[] = []
         if (settings.resolution !== 'original') filters.push(`scale=${settings.resolution}`)
@@ -101,11 +128,14 @@ export function useFfmpeg() {
     const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
     const blob = new Blob([bytes], { type: `${settings.outputKind}/${settings.format}` })
     const fileName = `${stem(media.file.name)}-${settings.tool === 'compress' ? 'smaller' : 'converted'}.${settings.format}`
-    await Promise.allSettled([engine.deleteFile(inputName), engine.deleteFile(outputName)])
+    await Promise.allSettled([engine.deleteFile(inputName), engine.deleteFile(outputName), ...(waveformName ? [engine.deleteFile(waveformName)] : [])])
+    activeController = null
     return { blob, url: URL.createObjectURL(blob), fileName, size: blob.size }
   }
 
   const cancel = () => {
+    activeController?.abort()
+    activeController = null
     engine?.terminate()
     engine = null
     loadPromise = null
