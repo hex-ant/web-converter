@@ -26,6 +26,9 @@ importers:
       '@iconify-json/fluent':
         specifier: ^1.2.29
         version: 1.2.55
+      '@iconify-json/simple-icons':
+        specifier: ^1.2.93
+        version: 1.2.93
       '@nuxt/icon':
         specifier: ^1.15.0
         version: 1.15.0(magicast@0.5.4)(vite@7.3.6(jiti@2.7.0)(terser@5.49.2)(yaml@2.9.0))(vue@3.5.41(typescript@5.9.3))
@@ -393,6 +396,9 @@ packages:
 
   '@iconify-json/fluent@1.2.55':
     resolution: {integrity: sha512-oe4kUO6LRfRcDVusNOzDUMWdo/Uh/CLHa+EGJrAfLA04HMv82cFCteZJim4NyLaEb15zgsn7gb182Inb0k/Oeg==}
+
+  '@iconify-json/simple-icons@1.2.93':
+    resolution: {integrity: sha512-/XhANjfGYOuqvSR3TmUnkQkINvQ4GVjVuukvymRbxtVFBvIq/yiXJqCDycKcQPT401OYT9H2vIY6ihAlz1QIAw==}
 
   '@iconify/collections@1.0.721':
     resolution: {integrity: sha512-v6mwP1B2ewhImPrQmSMnwyFrtKVXrbWlrr2oOrUSEPrs9ArsK2sIq1Of6fXBzfJVLY25WYYhkjOSRnAKG7NDog==}
@@ -3897,6 +3903,10 @@ snapshots:
   '@fontsource/sora@5.3.0': {}
 
   '@iconify-json/fluent@1.2.55':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify-json/simple-icons@1.2.93':
     dependencies:
       '@iconify/types': 2.0.0
 

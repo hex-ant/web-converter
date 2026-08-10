@@ -1,6 +1,6 @@
 # withconverter.com
 
-withconverter.com is a private, browser-only media converter and compressor built with Nuxt and FFmpeg WebAssembly.
+[withconverter.com](https://withconverter.com/) is a private, browser-only media converter and compressor built with Nuxt and FFmpeg WebAssembly.
 
 ## Highlights
 
