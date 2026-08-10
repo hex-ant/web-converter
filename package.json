@@ -1,6 +1,29 @@
 {
   "name": "withconverter",
+  "version": "1.0.0",
+  "description": "A private, browser-only video and audio converter powered by FFmpeg WebAssembly.",
   "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "Artur's Ant",
+    "email": "ant@arturrosa.pl"
+  },
+  "homepage": "https://withconverter.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hex-ant/web-converter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hex-ant/web-converter/issues"
+  },
+  "keywords": [
+    "audio",
+    "converter",
+    "ffmpeg",
+    "nuxt",
+    "video",
+    "webassembly"
+  ],
   "type": "module",
   "scripts": {
     "dev": "nuxt dev",

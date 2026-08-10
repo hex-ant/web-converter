@@ -10,6 +10,7 @@ let loadPromise: Promise<boolean> | null = null
 
 const extension = (name: string) => name.split('.').pop()?.toLowerCase() || 'bin'
 const stem = (name: string) => name.replace(/\.[^/.]+$/, '')
+const MAX_WAVEFORM_DURATION = 10 * 60
 
 export function useFfmpeg() {
   const progress = ref(0)
@@ -44,7 +45,14 @@ export function useFfmpeg() {
     if (!engine.loaded) {
       status.value = 'Loading the local media engine…'
       loadPromise ||= engine.load({ coreURL, wasmURL })
-      await loadPromise
+      try {
+        await loadPromise
+      } catch (error) {
+        loadPromise = null
+        engine?.terminate()
+        engine = null
+        throw error
+      }
     }
   }
 
@@ -54,83 +62,103 @@ export function useFfmpeg() {
     ffmpegProgressStart = 0
     activeDuration = media.duration
     logs.value = []
-    activeController = new AbortController()
-    await load()
-    if (!engine) throw new Error('The media engine did not start.')
-
+    const controller = new AbortController()
+    activeController = controller
     const inputName = `input.${extension(media.file.name)}`
     const outputName = `output.${settings.format}`
-    await engine.writeFile(inputName, await fetchFile(media.file))
-    const args: string[] = ['-i', inputName]
-    let waveformName = ''
+    const temporaryFiles = new Set<string>()
+    let currentEngine: FFmpeg | null = null
 
-    if (media.kind === 'audio' && settings.outputKind === 'video') {
-      if (settings.backdropMode === 'waveform') {
+    try {
+      await load()
+      currentEngine = engine
+      if (!currentEngine) throw new Error('The media engine did not start.')
+
+      const isWaveform = media.kind === 'audio' && settings.outputKind === 'video' && settings.backdropMode === 'waveform'
+      const args: string[] = ['-i', inputName]
+      let waveformName = ''
+
+      if (isWaveform) {
+        if (media.duration > MAX_WAVEFORM_DURATION) throw new Error('Animated audio wave videos are limited to 10 minutes to keep browser memory use stable.')
         status.value = 'Drawing your audio wave…'
-        const waveform = await createWaveformVideo(media.file, {
+        let waveform: Blob | null = await createWaveformVideo(media.file, {
           width: settings.outputWidth,
           height: settings.outputHeight,
           format: settings.format === 'webm' ? 'webm' : 'mp4',
           backgroundColor: settings.backdropColor,
-          signal: activeController.signal,
+          signal: controller.signal,
           onProgress: value => { progress.value = value * 0.72 }
         })
         waveformName = `waveform.${settings.format === 'webm' ? 'webm' : 'mp4'}`
-        await engine.writeFile(waveformName, await fetchFile(waveform))
-        args.splice(0, args.length, '-i', waveformName, '-i', inputName)
-        args.push('-map', '0:v', '-map', '1:a', '-shortest')
-        ffmpegProgressStart = 0.72
-      } else if (settings.backdropMode === 'image' && settings.backdropImage) {
-        const imageName = `cover.${extension(settings.backdropImage.name)}`
-        await engine.writeFile(imageName, await fetchFile(settings.backdropImage))
-        args.splice(0, args.length, '-loop', '1', '-i', imageName, '-i', inputName)
-        args.push('-map', '0:v', '-map', '1:a')
+        temporaryFiles.add(waveformName)
+        await currentEngine.writeFile(waveformName, await fetchFile(waveform))
+        waveform = null
+      }
+
+      temporaryFiles.add(inputName)
+      await currentEngine.writeFile(inputName, await fetchFile(media.file))
+
+      if (media.kind === 'audio' && settings.outputKind === 'video') {
+        if (isWaveform) {
+          args.splice(0, args.length, '-i', waveformName, '-i', inputName)
+          args.push('-map', '0:v', '-map', '1:a', '-shortest')
+          ffmpegProgressStart = 0.72
+        } else if (settings.backdropMode === 'image' && settings.backdropImage) {
+          const imageName = `cover.${extension(settings.backdropImage.name)}`
+          temporaryFiles.add(imageName)
+          await currentEngine.writeFile(imageName, await fetchFile(settings.backdropImage))
+          args.splice(0, args.length, '-loop', '1', '-i', imageName, '-i', inputName)
+          args.push('-map', '0:v', '-map', '1:a')
+        } else {
+          args.splice(0, args.length, '-f', 'lavfi', '-i', `color=c=${settings.backdropColor.replace('#', '0x')}:s=${settings.outputWidth}x${settings.outputHeight}:r=${settings.frameRate}`, '-i', inputName)
+          args.push('-map', '0:v', '-map', '1:a')
+        }
+        if (!isWaveform) {
+          const cropFilter = settings.backdropMode === 'image'
+            ? `crop=iw*${settings.cropWidth / 100}:ih*${settings.cropHeight / 100}:iw*${settings.cropX / 100}:ih*${settings.cropY / 100},scale=${settings.outputWidth}:${settings.outputHeight}`
+            : `scale=${settings.outputWidth}:${settings.outputHeight}`
+          args.push('-vf', cropFilter, '-shortest')
+        }
+      }
+
+      if (settings.outputKind === 'audio') {
+        args.push('-vn')
+        if (settings.format === 'mp3') args.push('-c:a', 'libmp3lame')
+        else if (settings.format === 'wav') args.push('-c:a', 'pcm_s16le')
+        else if (settings.format === 'ogg') args.push('-c:a', 'libvorbis')
+        else args.push('-c:a', settings.audioCodec)
+        if (settings.format !== 'wav') args.push('-b:a', `${settings.audioBitrate}k`)
       } else {
-        args.splice(0, args.length, '-f', 'lavfi', '-i', `color=c=${settings.backdropColor.replace('#', '0x')}:s=${settings.outputWidth}x${settings.outputHeight}:r=${settings.frameRate}`, '-i', inputName)
-        args.push('-map', '0:v', '-map', '1:a')
+        if (isWaveform) args.push('-c:v', 'copy')
+        else {
+          args.push('-c:v', settings.format === 'webm' ? 'libvpx-vp9' : settings.videoCodec)
+          args.push('-crf', String(settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
+        }
+        if (media.kind === 'video') {
+          const filters: string[] = []
+          if (settings.resolution !== 'original') filters.push(`scale=${settings.resolution}`)
+          if (settings.frameRate > 0) filters.push(`fps=fps='min(source_fps,${settings.frameRate})'`)
+          if (filters.length) args.push('-vf', filters.join(','))
+        }
+        args.push('-c:a', settings.format === 'webm' ? 'libopus' : settings.audioCodec, '-b:a', `${settings.audioBitrate}k`)
+        if (settings.format === 'mp4') args.push('-movflags', '+faststart')
       }
-      if (settings.backdropMode !== 'waveform') {
-        const cropFilter = settings.backdropMode === 'image'
-          ? `crop=iw*${settings.cropWidth / 100}:ih*${settings.cropHeight / 100}:iw*${settings.cropX / 100}:ih*${settings.cropY / 100},scale=${settings.outputWidth}:${settings.outputHeight}`
-          : `scale=${settings.outputWidth}:${settings.outputHeight}`
-        args.push('-vf', cropFilter, '-shortest')
-      }
-    }
 
-    if (settings.outputKind === 'audio') {
-      args.push('-vn')
-      if (settings.format === 'mp3') args.push('-c:a', 'libmp3lame')
-      else if (settings.format === 'wav') args.push('-c:a', 'pcm_s16le')
-      else if (settings.format === 'ogg') args.push('-c:a', 'libvorbis')
-      else args.push('-c:a', settings.audioCodec)
-      if (settings.format !== 'wav') args.push('-b:a', `${settings.audioBitrate}k`)
-    } else {
-      if (settings.backdropMode === 'waveform' && media.kind === 'audio') args.push('-c:v', 'copy')
-      else {
-        args.push('-c:v', settings.format === 'webm' ? 'libvpx-vp9' : settings.videoCodec)
-        args.push('-crf', String(settings.quality), '-preset', 'veryfast', '-pix_fmt', 'yuv420p')
-      }
-      if (media.kind === 'video') {
-        const filters: string[] = []
-        if (settings.resolution !== 'original') filters.push(`scale=${settings.resolution}`)
-        if (settings.frameRate > 0) filters.push(`fps=fps='min(source_fps,${settings.frameRate})'`)
-        if (filters.length) args.push('-vf', filters.join(','))
-      }
-      args.push('-c:a', settings.format === 'webm' ? 'libopus' : settings.audioCodec, '-b:a', `${settings.audioBitrate}k`)
-      if (settings.format === 'mp4') args.push('-movflags', '+faststart')
+      args.push(outputName)
+      temporaryFiles.add(outputName)
+      status.value = 'Starting the conversion…'
+      const exitCode = await currentEngine.exec(args)
+      if (exitCode !== 0) throw new Error(`The media engine stopped with exit code ${exitCode}.`)
+      status.value = 'Finishing up…'
+      const data = await currentEngine.readFile(outputName)
+      const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
+      const blob = new Blob([bytes], { type: `${settings.outputKind}/${settings.format}` })
+      const fileName = `${stem(media.file.name)}-${settings.tool === 'compress' ? 'smaller' : 'converted'}.${settings.format}`
+      return { blob, url: URL.createObjectURL(blob), fileName, size: blob.size }
+    } finally {
+      if (currentEngine) await Promise.allSettled([...temporaryFiles].map(file => currentEngine!.deleteFile(file)))
+      if (activeController === controller) activeController = null
     }
-
-    args.push(outputName)
-    status.value = 'Starting the conversion…'
-    await engine.exec(args)
-    status.value = 'Finishing up…'
-    const data = await engine.readFile(outputName)
-    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
-    const blob = new Blob([bytes], { type: `${settings.outputKind}/${settings.format}` })
-    const fileName = `${stem(media.file.name)}-${settings.tool === 'compress' ? 'smaller' : 'converted'}.${settings.format}`
-    await Promise.allSettled([engine.deleteFile(inputName), engine.deleteFile(outputName), ...(waveformName ? [engine.deleteFile(waveformName)] : [])])
-    activeController = null
-    return { blob, url: URL.createObjectURL(blob), fileName, size: blob.size }
   }
 
   const cancel = () => {

@@ -290,7 +290,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
         <button class="again" @click="requestNavigation(1)"><Icon name="fluent:add-20-regular" /> Work on another file</button>
       </section>
     </main>
-    <footer class="site-footer">Made for you, not your data. <span>·</span> Runs entirely in your browser</footer>
+    <footer class="site-footer">Made for you, not your data. <span>·</span> Runs entirely in your browser <span>·</span> <a href="/licenses.html">Licenses</a></footer>
     <ConfirmNavigationModal v-if="pendingNavigation !== null" :processing="step === 3" @cancel="pendingNavigation = null" @confirm="confirmNavigation" />
   </div>
 </template>
@@ -314,6 +314,8 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
   transition: left .2s linear;
   pointer-events: none;
 }
+.site-footer a { color: inherit; text-underline-offset: 2px; }
+.site-footer a:hover { color: var(--text); }
 .intent-grid { display: grid; gap: 10px; margin-top: 24px; }
 .intent-grid > button { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); text-align: left; cursor: pointer; transition: .2s; }
 .intent-grid > button:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateX(3px); }

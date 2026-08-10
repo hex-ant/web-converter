@@ -98,7 +98,8 @@ export async function createWaveformVideo(file: File, options: WaveformVideoOpti
     const channels = Array.from({ length: audioBuffer.numberOfChannels }, (_, index) => audioBuffer.getChannelData(index))
     const levelCount = Math.max(1, Math.ceil(audioBuffer.duration / BAR_INTERVAL))
     const levels = Array.from({ length: levelCount }, (_, index) => sampleLevel(channels, audioBuffer.sampleRate, index * BAR_INTERVAL, BAR_INTERVAL))
-    const amplitudeReference = Math.max(0.04, ...levels)
+    let amplitudeReference = 0.04
+    for (const level of levels) amplitudeReference = Math.max(amplitudeReference, level)
     const frameRate = options.frameRate || 30
     const frameDuration = 1 / frameRate
     const frameCount = Math.max(1, Math.ceil(audioBuffer.duration * frameRate))

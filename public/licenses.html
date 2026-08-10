@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Licenses — WithConverter</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+    body { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; background: #f8f7f4; color: #191815; }
+    h1 { letter-spacing: -.04em; }
+    h2 { margin-top: 2em; font-size: 1.15rem; }
+    a { color: #b76c00; }
+    code { font-size: .88em; }
+    .back { display: inline-block; margin-bottom: 24px; }
+    @media (prefers-color-scheme: dark) { body { background: #121210; color: #f7f4ed; } a { color: #ffc45c; } }
+  </style>
+</head>
+<body>
+  <a class="back" href="/">← Back to WithConverter</a>
+  <h1>Licenses and source code</h1>
+  <p>WithConverter’s original source code is available under the <a href="https://github.com/hex-ant/web-converter/blob/main/LICENSE">MIT License</a>. Bundled third-party software remains under its own license.</p>
+
+  <h2>FFmpeg WebAssembly</h2>
+  <p>This site distributes <code>@ffmpeg/core</code> 0.12.10, an FFmpeg 5.1.4 WebAssembly build licensed under the GNU GPL 2.0 or later. The JavaScript wrapper and utilities are MIT-licensed.</p>
+  <ul>
+    <li><a href="https://github.com/ffmpegwasm/ffmpeg.wasm/tree/v0.12.10">ffmpeg.wasm 0.12.10 source</a></li>
+    <li><a href="https://github.com/FFmpeg/FFmpeg/tree/n5.1.4">FFmpeg 5.1.4 source</a></li>
+    <li><a href="https://github.com/ffmpegwasm/ffmpeg.wasm/tree/v0.12.10/build">Build recipes and codec dependency sources</a></li>
+    <li><a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GNU GPL 2.0 text</a></li>
+  </ul>
+  <p>The build enables GPL mode and libx264, libx265, libvpx, libmp3lame, libtheora, libvorbis, libopus, zlib, libwebp, libfreetype, libfribidi, libass and libzimg.</p>
+
+  <h2>Mediabunny</h2>
+  <p>Mediabunny 1.53.0 is bundled under the Mozilla Public License 2.0. Its <a href="https://github.com/Vanilagy/mediabunny/tree/v1.53.0">corresponding source</a> and the <a href="https://www.mozilla.org/MPL/2.0/">MPL 2.0 text</a> are available online.</p>
+
+  <h2>Fonts and icons</h2>
+  <ul>
+    <li><a href="https://www.npmjs.com/package/@fontsource/sora/v/5.3.0">Sora</a> and <a href="https://www.npmjs.com/package/@fontsource/bodoni-moda/v/5.3.0">Bodoni Moda</a>: SIL Open Font License 1.1</li>
+    <li><a href="https://github.com/microsoft/fluentui-system-icons">Fluent UI System Icons</a>: MIT License</li>
+    <li><a href="https://github.com/simple-icons/simple-icons">Simple Icons</a>: CC0 1.0</li>
+  </ul>
+  <p>See the repository’s <a href="https://github.com/hex-ant/web-converter/blob/main/THIRD_PARTY_NOTICES.md">complete third-party notices</a> and <a href="https://github.com/hex-ant/web-converter/blob/main/pnpm-lock.yaml">resolved dependency list</a>.</p>
+</body>
+</html>
