@@ -292,7 +292,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
         <button class="again" @click="requestNavigation(1)"><Icon name="fluent:add-20-regular" /> Work on another file</button>
       </section>
     </main>
-    <footer class="site-footer">Made for you, not your data. <span>·</span> Runs with FFmpeg WebAssembly</footer>
+    <footer class="site-footer">Made for you, not your data. <span>·</span> Runs entirely in your browser</footer>
     <ConfirmNavigationModal v-if="pendingNavigation !== null" :processing="step === 3" @cancel="pendingNavigation = null" @confirm="confirmNavigation" />
   </div>
 </template>
