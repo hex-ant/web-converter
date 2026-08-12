@@ -27,6 +27,7 @@ type CropGestureMode = 'move' | 'nw' | 'ne' | 'sw' | 'se'
 let cropGesture: { mode: CropGestureMode; startX: number; startY: number; x: number; y: number; width: number; height: number } | null = null
 const { probe } = useMediaProbe()
 const ffmpeg = useFfmpeg()
+const { track } = useAnalytics()
 const settings = reactive<ProcessSettings>({ tool: 'convert', outputKind: 'video', presetId: 'compatible', format: 'mp4', videoCodec: 'libx264', audioCodec: 'aac', resolution: 'original', frameRate: 30, quality: 23, audioBitrate: 192, backdropMode: 'color', backdropColor: '#17130c', backdropImage: null, backdropImageUrl: '', outputWidth: 1920, outputHeight: 1080, cropX: 7, cropY: 7, cropWidth: 86, cropHeight: 86 })
 const availableWorkflows = computed(() => media.value ? workflowsFor[media.value.kind] : [])
 const activeWorkflow = computed(() => availableWorkflows.value.find(item => item.id === workflow.value))
@@ -71,6 +72,7 @@ function chooseWorkflow(id: Workflow) {
   settings.outputKind = option.outputKind
   if (id === 'audio-video') Object.assign(settings, { videoCodec: 'libx264', quality: 28, frameRate: 1, resolution: 'original' })
   selectPreset(workflowPresets[id][0])
+  track('tool_selected', { workflow: id })
 }
 function changeFormat() {
   if (settings.format === 'mp3') settings.audioCodec = 'libmp3lame'
@@ -175,7 +177,35 @@ watch(cropRect, (rect) => {
   settings.cropWidth = rect.width
   settings.cropHeight = rect.height
 }, { deep: true, immediate: true })
-async function start() { if (!media.value || !canStart.value) return; downloaded.value = false; step.value = 3; error.value = ''; try { result.value = await ffmpeg.process(media.value, settings); step.value = 4 } catch (reason) { if (step.value === 3) { error.value = reason instanceof Error ? reason.message : 'Processing stopped unexpectedly.'; step.value = 2 } } }
+async function start() {
+  if (!media.value || !workflow.value || !canStart.value) return
+  const selectedWorkflow = workflow.value
+  const outputFormat = settings.format
+  downloaded.value = false
+  step.value = 3
+  error.value = ''
+  track('processing_started', {
+    workflow: selectedWorkflow,
+    preset: settings.presetId,
+    outputFormat,
+    ...(selectedWorkflow === 'audio-video' ? { backdrop: settings.backdropMode } : {})
+  })
+  try {
+    result.value = await ffmpeg.process(media.value, settings)
+    track('processing_completed', { workflow: selectedWorkflow, outputFormat })
+    step.value = 4
+  } catch (reason) {
+    if (step.value === 3) {
+      track('processing_failed', { workflow: selectedWorkflow })
+      error.value = reason instanceof Error ? reason.message : 'Processing stopped unexpectedly.'
+      step.value = 2
+    }
+  }
+}
+function downloadResult() {
+  downloaded.value = true
+  if (workflow.value) track('download_clicked', { workflow: workflow.value, outputFormat: settings.format })
+}
 function requestNavigation(target: number) {
   if (target >= step.value) return
   if (step.value === 3 || (step.value === 4 && !downloaded.value)) pendingNavigation.value = target
@@ -286,7 +316,7 @@ onBeforeUnmount(() => { window.removeEventListener('beforeunload', handleBeforeU
 
       <section v-else-if="step === 4 && media && result" class="done">
         <div class="done-icon"><Icon name="fluent:checkmark-32-filled" /></div><span class="kicker">All done</span><h1>Your file is ready.</h1><p>Converted entirely on your device. Nothing was uploaded anywhere.</p>
-        <div class="result-card"><span class="result-icon"><Icon :name="settings.outputKind === 'video' ? 'fluent:video-24-regular' : 'fluent:music-note-2-24-regular'" /></span><div><strong>{{ result.fileName }}</strong><span>{{ size(result.size) }}<template v-if="savings"> · {{ savings }}% smaller</template></span></div><a :href="result.url" :download="result.fileName" @click="downloaded = true"><Icon name="fluent:arrow-download-20-regular" /> Download</a></div>
+        <div class="result-card"><span class="result-icon"><Icon :name="settings.outputKind === 'video' ? 'fluent:video-24-regular' : 'fluent:music-note-2-24-regular'" /></span><div><strong>{{ result.fileName }}</strong><span>{{ size(result.size) }}<template v-if="savings"> · {{ savings }}% smaller</template></span></div><a :href="result.url" :download="result.fileName" @click="downloadResult"><Icon name="fluent:arrow-download-20-regular" /> Download</a></div>
         <button class="again" @click="requestNavigation(1)"><Icon name="fluent:add-20-regular" /> Work on another file</button>
       </section>
     </main>
