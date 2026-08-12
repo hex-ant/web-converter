@@ -23,6 +23,33 @@ const accept = (files: FileList | null) => {
     </button>
     <input ref="input" class="sr-only" type="file" accept="video/*,audio/*" @change="accept(($event.target as HTMLInputElement).files)">
     <p v-if="error" class="error"><Icon name="fluent:error-circle-20-regular" /> {{ error }}</p>
+    <section class="privacy-section" aria-labelledby="privacy-title">
+      <span class="privacy-rule" />
+      <h2 id="privacy-title">How it stays private</h2>
+      <div class="privacy-points">
+        <article>
+          <Icon name="fluent:phone-laptop-24-regular" />
+          <div>
+            <h3>Processed on your device.</h3>
+            <p>Your files stay in your browser. They’re never uploaded to a server.</p>
+          </div>
+        </article>
+        <article>
+          <Icon name="fluent:person-prohibited-24-regular" />
+          <div>
+            <h3>No account required.</h3>
+            <p>Just visit the website, drop a file, and do the job.</p>
+          </div>
+        </article>
+        <article>
+          <Icon name="simple-icons:github" />
+          <div>
+            <h3>Open source.</h3>
+            <p>Don’t take my word for it. The <a href="https://github.com/hex-ant/web-converter" target="_blank" rel="noopener noreferrer">source code is public</a>.</p>
+          </div>
+        </article>
+      </div>
+    </section>
   </section>
 </template>
 
@@ -54,7 +81,21 @@ h1 em {
 .intro-meta a:hover { color: var(--text); }
 .no-break { white-space: nowrap; }
 .medium-break { display: none; }
+.privacy-section { width: min(760px, 100%); margin: 74px auto 0; text-align: left; }
+.privacy-rule { display: block; width: 32px; height: 2px; margin: 0 auto 17px; border-radius: 99px; background: var(--accent); }
+.privacy-section > h2 { margin: 0 0 28px; text-align: center; font-size: clamp(22px, 3vw, 29px); font-weight: 500; letter-spacing: -.035em; }
+.privacy-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+.privacy-points article { display: flex; align-items: flex-start; gap: 13px; }
+.privacy-points article > :first-child { flex: 0 0 auto; margin-top: 2px; color: var(--accent-strong); font-size: 20px; }
+.privacy-points h3 { margin: 0 0 7px; font-size: 13px; font-weight: 600; line-height: 1.45; }
+.privacy-points p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.privacy-points a { color: inherit; text-underline-offset: 2px; }
+.privacy-points a:hover { color: var(--text); }
 @media (min-width: 641px) {
   .medium-break { display: block; }
+}
+@media (max-width: 700px) {
+  .privacy-section { margin-top: 56px; }
+  .privacy-points { grid-template-columns: 1fr; gap: 22px; max-width: 430px; margin: auto; }
 }
 </style>
